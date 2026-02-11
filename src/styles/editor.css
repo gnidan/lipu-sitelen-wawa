@@ -1,0 +1,36 @@
+.editor-content {
+  font-family: "nasin-nanpa", sans-serif;
+  font-feature-settings: "liga" 1;
+  font-size: 2rem;
+  line-height: 1.6;
+  padding: 1rem;
+  min-height: 200px;
+  outline: none;
+}
+
+.editor-content:focus {
+  outline: none;
+}
+
+.editor-content p {
+  margin: 0.5em 0;
+}
+
+.editor-wrapper {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.sitelen-pona-glyph {
+  font-family: "nasin-nanpa", sans-serif;
+  font-feature-settings: "liga" 1;
+  cursor: default;
+  display: inline;
+}
+
+.sitelen-pona-glyph--selected {
+  background: #d0d0ff;
+  border-radius: 2px;
+  outline: 2px solid #88f;
+}

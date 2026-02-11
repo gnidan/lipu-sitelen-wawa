@@ -1,0 +1,49 @@
+.variant-popup {
+  position: absolute;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 8px;
+  z-index: 100;
+}
+
+.variant-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.variant-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  background: #fafafa;
+  cursor: pointer;
+  font-family: "nasin-nanpa", sans-serif;
+  font-feature-settings: "liga" 1;
+  font-size: 1.5rem;
+  transition: background 0.1s;
+}
+
+.variant-option:hover {
+  background: #e8e8ff;
+  border-color: #aaa;
+}
+
+.variant-option.selected {
+  background: #d0d0ff;
+  border-color: #666;
+}
+
+.variant-label {
+  font-family: sans-serif;
+  font-size: 0.75rem;
+  color: #666;
+  text-align: center;
+  margin-top: 2px;
+}

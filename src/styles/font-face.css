@@ -1,0 +1,17 @@
+@font-face {
+  font-family: "nasin-nanpa";
+  src: url("/fonts/nasin-nanpa.otf") format("opentype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "nasin-nanpa-ucsur";
+  src:
+    url("/fonts/nasin-nanpa-ucsur.otf")
+    format("opentype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}

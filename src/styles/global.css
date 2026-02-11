@@ -1,0 +1,29 @@
+@import "./font-face.css";
+@import "./editor.css";
+@import "./variant-popup.css";
+@import "./toolbar.css";
+@import "./output-panel.css";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+  color: #222;
+  background: #fafafa;
+}
+
+#root {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+h1 {
+  font-size: 1.5rem;
+  margin: 0 0 16px;
+}
