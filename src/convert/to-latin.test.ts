@@ -5,6 +5,9 @@ import {
   codepointToChar,
   wordToCodepoint,
   VARIATION_SELECTOR_BASE,
+  START_OF_CARTOUCHE,
+  END_OF_CARTOUCHE,
+  CARTOUCHE_EXTENSION,
 } from "../data";
 
 function ucsur(word: string): string {
@@ -49,5 +52,76 @@ describe("toLatin", () => {
     const input = "mi wile moku";
     const roundTripped = toLatin(toUcsur(input));
     expect(roundTripped).toBe(input);
+  });
+
+  it(
+    "abbreviates single cartouche word",
+    () => {
+      const start = String.fromCodePoint(
+        START_OF_CARTOUCHE
+      );
+      const end = String.fromCodePoint(
+        END_OF_CARTOUCHE
+      );
+      const input =
+        start + ucsur("toki") + end;
+      expect(toLatin(input)).toBe("T");
+    }
+  );
+
+  it(
+    "abbreviates multi-word cartouche",
+    () => {
+      const start = String.fromCodePoint(
+        START_OF_CARTOUCHE
+      );
+      const end = String.fromCodePoint(
+        END_OF_CARTOUCHE
+      );
+      const ext = String.fromCodePoint(
+        CARTOUCHE_EXTENSION
+      );
+      const input =
+        start +
+        ucsur("o") +
+        ext +
+        ucsur("monsuta") +
+        ext +
+        ucsur("o") +
+        end;
+      expect(toLatin(input)).toBe("Omo");
+    }
+  );
+
+  it(
+    "does not abbreviate outside cartouches",
+    () => {
+      const start = String.fromCodePoint(
+        START_OF_CARTOUCHE
+      );
+      const end = String.fromCodePoint(
+        END_OF_CARTOUCHE
+      );
+      const input =
+        ucsur("mi") +
+        " " +
+        start +
+        ucsur("toki") +
+        end +
+        " " +
+        ucsur("pona");
+      expect(toLatin(input)).toBe(
+        "mi T pona"
+      );
+    }
+  );
+
+  it("strips control chars in output", () => {
+    const ext = String.fromCodePoint(
+      CARTOUCHE_EXTENSION
+    );
+    // Extension char outside cartouche is stripped
+    const input = ucsur("toki") + ext + ucsur("pona");
+    expect(toLatin(input)).toBe("toki pona");
   });
 });

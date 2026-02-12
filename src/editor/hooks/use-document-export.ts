@@ -1,14 +1,6 @@
 import { useMemo } from "react";
 import { Editor } from "@tiptap/core";
-import {
-  codepointToWord,
-  isUcsurChar,
-} from "../../data";
-import {
-  ucsurControlToAscii,
-  isVariationSelector,
-} from "../../data/structural-map";
-import { isControlChar } from "../../data/control-chars";
+import { toLatin } from "../../convert";
 
 export interface DocumentExport {
   latin: string;
@@ -20,9 +12,9 @@ export interface DocumentExport {
  * and UCSUR representations.
  *
  * UCSUR export: raw text content (already UCSUR).
- * Latin export: reverse-map UCSUR codepoints to
- * word names, control chars to ASCII, skip
- * variation selectors.
+ * Latin export: toLatin() handles word mapping,
+ * space insertion, control char stripping, and
+ * cartouche capitalization.
  */
 function extractDocument(
   editor: Editor
@@ -34,45 +26,8 @@ function extractDocument(
     "\n"
   );
 
-  const latinParts: string[] = [];
-
-  for (const ch of ucsur) {
-    const cp = ch.codePointAt(0)!;
-
-    // Variation selector -> skip
-    if (isVariationSelector(cp)) {
-      continue;
-    }
-
-    // Control char -> ASCII (check before
-    // isUcsurChar since control chars fall in
-    // the same U+F1900-F19FF range)
-    if (isControlChar(cp)) {
-      const ascii = ucsurControlToAscii(cp);
-      if (ascii) {
-        latinParts.push(ascii);
-      }
-      continue;
-    }
-
-    // UCSUR sitelen pona char
-    if (isUcsurChar(ch)) {
-      const word = codepointToWord[cp];
-      if (word) {
-        latinParts.push(word);
-      } else {
-        latinParts.push(ch);
-      }
-      continue;
-    }
-
-    // Everything else (spaces, Latin text,
-    // newlines) -> pass through
-    latinParts.push(ch);
-  }
-
   return {
-    latin: latinParts.join(""),
+    latin: toLatin(ucsur),
     ucsur,
   };
 }

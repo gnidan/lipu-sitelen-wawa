@@ -44,5 +44,6 @@ export {
   getWord,
   wordsByCategory,
   wordsByPrefix,
+  wordByFirstLetter,
 } from "./words";
 export type { WordEntry, WordCategory } from "./words";

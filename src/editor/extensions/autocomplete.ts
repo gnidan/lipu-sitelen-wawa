@@ -36,6 +36,14 @@ export interface AutocompleteState {
   coords: { left: number; top: number } | null;
   /** Document position range of composing text */
   range: { from: number; to: number } | null;
+  /**
+   * Range of text marked verbatim (Escape-rejected).
+   * Text in this range won't be auto-converted.
+   */
+  verbatimRange: {
+    from: number;
+    to: number;
+  } | null;
 }
 
 const EMPTY_STATE: AutocompleteState = {
@@ -44,6 +52,7 @@ const EMPTY_STATE: AutocompleteState = {
   activeIndex: 0,
   coords: null,
   range: null,
+  verbatimRange: null,
 };
 
 const MAX_SUGGESTIONS = 8;
@@ -100,7 +109,8 @@ function extractWordBeforeSpace(
   if (!match) return null;
 
   const word = match[1].toLowerCase();
-  const start = withoutSpace.length - match[1].length;
+  const start =
+    withoutSpace.length - match[1].length;
   return { word, start };
 }
 
@@ -115,6 +125,18 @@ function wordToUcsur(
     text = applyVariation(text, variation);
   }
   return text;
+}
+
+/**
+ * Check if two ranges overlap.
+ */
+function rangesOverlap(
+  aFrom: number,
+  aTo: number,
+  bFrom: number,
+  bTo: number
+): boolean {
+  return aFrom < bTo && bFrom < aTo;
 }
 
 export const Autocomplete = Extension.create({
@@ -140,7 +162,9 @@ export const Autocomplete = Extension.create({
       const { state } = this.editor.view;
       let text = ucsur;
       if (trailingText) text += trailingText;
-      const tr = state.tr.insertText(text, from, to);
+      const tr = state.tr.insertText(
+        text, from, to
+      );
       this.editor.view.dispatch(tr);
     };
 
@@ -154,12 +178,16 @@ export const Autocomplete = Extension.create({
           },
 
           apply(tr, prev, _oldState, newState) {
-            // Handle dismiss meta
+            // Handle dismiss meta (Escape)
             const meta = tr.getMeta(
               autocompletePluginKey
             );
             if (meta?.dismiss) {
-              return EMPTY_STATE;
+              return {
+                ...EMPTY_STATE,
+                verbatimRange:
+                  meta.verbatimRange ?? null,
+              };
             }
             if (
               typeof meta?.activeIndex === "number"
@@ -170,11 +198,33 @@ export const Autocomplete = Extension.create({
               };
             }
 
+            // Remap verbatimRange through mapping.
+            // Use assoc=-1 for `to` so the range
+            // doesn't expand when text is inserted
+            // right after it.
+            let verbatimRange = prev.verbatimRange;
+            if (verbatimRange && tr.docChanged) {
+              const newFrom = tr.mapping.map(
+                verbatimRange.from
+              );
+              const newTo = tr.mapping.map(
+                verbatimRange.to, -1
+              );
+              if (newFrom >= newTo) {
+                verbatimRange = null;
+              } else {
+                verbatimRange = {
+                  from: newFrom,
+                  to: newTo,
+                };
+              }
+            }
+
             if (
               !tr.docChanged &&
               !tr.selectionSet
             ) {
-              return prev;
+              return { ...prev, verbatimRange };
             }
 
             const composing =
@@ -184,7 +234,43 @@ export const Autocomplete = Extension.create({
               !composing ||
               composing.word.length < 1
             ) {
-              return EMPTY_STATE;
+              // If no composing word, clear
+              // verbatimRange only if cursor moved
+              // away (no overlap possible)
+              return {
+                ...EMPTY_STATE,
+                verbatimRange,
+              };
+            }
+
+            // Check if composing word overlaps
+            // the verbatim range
+            if (
+              verbatimRange &&
+              rangesOverlap(
+                composing.from,
+                composing.to,
+                verbatimRange.from,
+                verbatimRange.to
+              )
+            ) {
+              // Extend verbatim range to cover
+              // the growing word
+              verbatimRange = {
+                from: Math.min(
+                  verbatimRange.from,
+                  composing.from
+                ),
+                to: Math.max(
+                  verbatimRange.to,
+                  composing.to
+                ),
+              };
+              // Suppress popup
+              return {
+                ...EMPTY_STATE,
+                verbatimRange,
+              };
             }
 
             const matches = wordsByPrefix(
@@ -192,7 +278,28 @@ export const Autocomplete = Extension.create({
             ).slice(0, MAX_SUGGESTIONS);
 
             if (matches.length === 0) {
-              return EMPTY_STATE;
+              // No tp words match this prefix —
+              // auto-mark as verbatim so ligatures
+              // are suppressed
+              const vr = verbatimRange
+                ? {
+                    from: Math.min(
+                      verbatimRange.from,
+                      composing.from
+                    ),
+                    to: Math.max(
+                      verbatimRange.to,
+                      composing.to
+                    ),
+                  }
+                : {
+                    from: composing.from,
+                    to: composing.to,
+                  };
+              return {
+                ...EMPTY_STATE,
+                verbatimRange: vr,
+              };
             }
 
             const sameRoot =
@@ -216,6 +323,7 @@ export const Autocomplete = Extension.create({
                 from: composing.from,
                 to: composing.to,
               },
+              verbatimRange,
             };
           },
         },
@@ -226,21 +334,73 @@ export const Autocomplete = Extension.create({
               .getState(state) as
               | AutocompleteState
               | undefined;
-            if (!st?.range || st.prefix.length === 0) {
-              return DecorationSet.empty;
-            }
-            return DecorationSet.create(
-              state.doc,
-              [
+            if (!st) return DecorationSet.empty;
+
+            const decos: Decoration[] = [];
+
+            // Composing text decoration
+            if (
+              st.range &&
+              st.prefix.length > 0
+            ) {
+              decos.push(
                 Decoration.inline(
                   st.range.from,
                   st.range.to,
                   { class: "composing-text" }
-                ),
-              ]
+                )
+              );
+            }
+
+            // Verbatim text decoration —
+            // suppress ligatures so the font
+            // doesn't render Latin as glyphs
+            if (st.verbatimRange) {
+              decos.push(
+                Decoration.inline(
+                  st.verbatimRange.from,
+                  st.verbatimRange.to,
+                  { class: "verbatim-text" }
+                )
+              );
+            }
+
+            if (decos.length === 0) {
+              return DecorationSet.empty;
+            }
+            return DecorationSet.create(
+              state.doc,
+              decos
             );
           },
           handleKeyDown(view, event) {
+            // Escape: dismiss popup and mark
+            // composing word as verbatim. Handled
+            // before the matches check so it works
+            // even when the popup isn't showing
+            // (prevents browser from blurring the
+            // editor).
+            if (event.key === "Escape") {
+              const composing =
+                getComposingWord(view.state);
+              if (composing) {
+                view.dispatch(
+                  view.state.tr.setMeta(
+                    autocompletePluginKey,
+                    {
+                      dismiss: true,
+                      verbatimRange: {
+                        from: composing.from,
+                        to: composing.to,
+                      },
+                    }
+                  )
+                );
+                return true;
+              }
+              return false;
+            }
+
             const pluginState =
               autocompletePluginKey.getState(
                 view.state
@@ -275,17 +435,6 @@ export const Autocomplete = Extension.create({
                 word,
                 range.from,
                 range.to
-              );
-              return true;
-            }
-
-            // Escape: dismiss popup
-            if (event.key === "Escape") {
-              view.dispatch(
-                view.state.tr.setMeta(
-                  autocompletePluginKey,
-                  { dismiss: true }
-                )
               );
               return true;
             }
@@ -421,6 +570,25 @@ export const Autocomplete = Extension.create({
           const wordFrom = textStart + start;
           const wordTo =
             textStart + start + word.length;
+
+          // Check if word overlaps verbatimRange
+          const pluginState =
+            autocompletePluginKey.getState(
+              newState
+            ) as AutocompleteState | undefined;
+          if (pluginState?.verbatimRange) {
+            const vr = pluginState.verbatimRange;
+            if (
+              rangesOverlap(
+                wordFrom,
+                wordTo,
+                vr.from,
+                vr.to
+              )
+            ) {
+              return null;
+            }
+          }
 
           const tr = newState.tr.insertText(
             ucsur,

@@ -26,7 +26,8 @@
 /* Suppress nasin-nanpa ligatures for text still being
    composed, so Latin letters stay readable until the
    word is committed as a UCSUR character. */
-.composing-text {
+.composing-text,
+.verbatim-text {
   font-feature-settings: "liga" 0 !important;
 }
 

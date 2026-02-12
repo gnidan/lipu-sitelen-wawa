@@ -126,7 +126,7 @@ describe("useDocumentExport", () => {
   });
 
   it(
-    "maps SCALING_JOINER to + in Latin export",
+    "strips SCALING_JOINER in Latin export",
     () => {
       const editor = createEditor("<p></p>");
       editor.commands.insertSitelenPona("toki");
@@ -142,7 +142,7 @@ describe("useDocumentExport", () => {
       );
 
       expect(result.current.latin).toBe(
-        "toki+pona"
+        "toki pona"
       );
 
       const tokiChar = codepointToChar(0xF196C);
@@ -155,8 +155,7 @@ describe("useDocumentExport", () => {
   );
 
   it(
-    "maps cartouche chars in UCSUR to " +
-      "[] in Latin",
+    "abbreviates cartouche words in Latin export",
     () => {
       const editor = createEditor("<p></p>");
       const startChar = String.fromCodePoint(
@@ -173,9 +172,7 @@ describe("useDocumentExport", () => {
         useDocumentExport(editor)
       );
 
-      expect(result.current.latin).toBe(
-        "[toki]"
-      );
+      expect(result.current.latin).toBe("T");
 
       const tokiChar = codepointToChar(0xF196C);
       expect(result.current.ucsur).toBe(
@@ -186,8 +183,7 @@ describe("useDocumentExport", () => {
   );
 
   it(
-    "maps long glyph chars in UCSUR to " +
-      "() in Latin",
+    "strips long glyph chars in Latin export",
     () => {
       const editor = createEditor("<p></p>");
       const startChar = String.fromCodePoint(
@@ -204,9 +200,7 @@ describe("useDocumentExport", () => {
         useDocumentExport(editor)
       );
 
-      expect(result.current.latin).toBe(
-        "(toki)"
-      );
+      expect(result.current.latin).toBe("toki");
 
       const tokiChar = codepointToChar(0xF196C);
       expect(result.current.ucsur).toBe(

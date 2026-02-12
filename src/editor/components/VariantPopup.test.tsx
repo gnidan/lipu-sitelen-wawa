@@ -107,7 +107,7 @@ describe("VariantPopup", () => {
   );
 
   it(
-    "does not render when coords is null",
+    "hides popup when dismissed via meta",
     () => {
       const editor = createEditor("<p></p>");
       editor.commands.insertSitelenPona("ni");
@@ -116,6 +116,7 @@ describe("VariantPopup", () => {
         <VariantPopup editor={editor as any} />
       );
 
+      // Show popup
       act(() => {
         const tr = editor.state.tr.setMeta(
           variantPopupPluginKey,
@@ -123,8 +124,21 @@ describe("VariantPopup", () => {
             word: "ni",
             from: 1,
             to: 3,
-            coords: null,
+            coords: { left: 100, top: 200 },
           }
+        );
+        editor.view.dispatch(tr);
+      });
+
+      expect(
+        container.querySelector(".variant-popup")
+      ).toBeTruthy();
+
+      // Dismiss popup via null meta
+      act(() => {
+        const tr = editor.state.tr.setMeta(
+          variantPopupPluginKey,
+          null
         );
         editor.view.dispatch(tr);
       });

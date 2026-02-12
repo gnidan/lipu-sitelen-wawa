@@ -637,6 +637,32 @@ const CATEGORY_RANK: Record<WordCategory, number> = {
  * prefix, sorted by relevance: exact match first,
  * then by category rank, then alphabetical.
  */
+/**
+ * Pre-built map of first letter → first word
+ * alphabetically for cartouche expansion.
+ */
+const FIRST_LETTER_MAP: Record<string, string> =
+  {};
+for (const entry of Object.values(words)) {
+  const letter = entry.word[0];
+  if (
+    !(letter in FIRST_LETTER_MAP) ||
+    entry.word < FIRST_LETTER_MAP[letter]
+  ) {
+    FIRST_LETTER_MAP[letter] = entry.word;
+  }
+}
+
+/**
+ * Return a toki pona word starting with the given
+ * letter, or undefined if none exists.
+ */
+export function wordByFirstLetter(
+  letter: string
+): string | undefined {
+  return FIRST_LETTER_MAP[letter.toLowerCase()];
+}
+
 export function wordsByPrefix(
   prefix: string
 ): WordEntry[] {

@@ -20,6 +20,9 @@ import {
   VariantKeymap,
 } from "../extensions/variant-keymap";
 import {
+  PasteHandler,
+} from "../extensions/paste-handler";
+import {
   createVariantPopupPlugin,
   VariantPopup,
 } from "./VariantPopup";
@@ -90,6 +93,7 @@ export function Editor() {
       StructuralChars,
       VariantKeymap,
       VariantPopupExtension,
+      PasteHandler,
       TextNodeNormalizer,
     ],
   });
