@@ -9,6 +9,8 @@ import {
   wordToCodepoint,
   codepointToChar,
   applyVariation,
+  niDirectionByIndex,
+  niZwjString,
 } from "../../data";
 
 declare module "@tiptap/core" {
@@ -33,9 +35,26 @@ export const SitelenPona = Extension.create({
           const cp = wordToCodepoint[word];
           if (cp === undefined) return false;
 
-          let text = codepointToChar(cp);
-          if (variation != null && variation > 0) {
-            text = applyVariation(text, variation);
+          let text: string;
+          if (
+            word === "ni" &&
+            variation != null &&
+            variation > 0
+          ) {
+            const dir =
+              niDirectionByIndex(variation);
+            text = dir
+              ? niZwjString(cp, dir)
+              : codepointToChar(cp);
+          } else {
+            text = codepointToChar(cp);
+            if (
+              variation != null && variation > 0
+            ) {
+              text = applyVariation(
+                text, variation
+              );
+            }
           }
 
           if (dispatch) {

@@ -12,6 +12,9 @@ import {
   wordToCodepoint,
   codepointToChar,
   applyVariation,
+  niDirectionByIndex,
+  niDirectionByVerbatim,
+  niZwjString,
 } from "../../data";
 import type { WordEntry } from "../../data";
 import {
@@ -44,6 +47,11 @@ export interface AutocompleteState {
     from: number;
     to: number;
   } | null;
+  /**
+   * Direction buffer for ni (null = not in
+   * direction mode, "" = just pressed &).
+   */
+  niDirBuf: string | null;
 }
 
 const EMPTY_STATE: AutocompleteState = {
@@ -53,6 +61,7 @@ const EMPTY_STATE: AutocompleteState = {
   coords: null,
   range: null,
   verbatimRange: null,
+  niDirBuf: null,
 };
 
 const MAX_SUGGESTIONS = 8;
@@ -74,6 +83,24 @@ export function getComposingWord(
   const textNode = $from.nodeBefore;
   if (!textNode?.isText || !textNode.text) {
     return null;
+  }
+
+  // Match "ni&" + optional direction chars
+  const niDirMatch = textNode.text.match(
+    /(ni&[<^>v]{0,2})$/i
+  );
+  if (niDirMatch) {
+    const matchStr = niDirMatch[1];
+    const textStart =
+      $from.pos - textNode.text.length;
+    return {
+      word: matchStr.toLowerCase(),
+      from:
+        textStart +
+        textNode.text.length -
+        matchStr.length,
+      to: $from.pos,
+    };
   }
 
   const match = textNode.text.match(
@@ -103,6 +130,19 @@ function extractWordBeforeSpace(
   if (!text.endsWith(" ")) return null;
 
   const withoutSpace = text.slice(0, -1);
+
+  // Match ni + direction suffix
+  const niDirMatch = withoutSpace.match(
+    /(ni&[<^>v]{1,2})$/i
+  );
+  if (niDirMatch) {
+    const word = niDirMatch[1].toLowerCase();
+    const start =
+      withoutSpace.length -
+      niDirMatch[1].length;
+    return { word, start };
+  }
+
   const match = withoutSpace.match(
     /([a-zA-Z]+)$/
   );
@@ -120,6 +160,16 @@ function wordToUcsur(
 ): string | undefined {
   const cp = wordToCodepoint[word];
   if (cp === undefined) return undefined;
+  if (
+    word === "ni" &&
+    variation != null &&
+    variation > 0
+  ) {
+    const dir = niDirectionByIndex(variation);
+    return dir
+      ? niZwjString(cp, dir)
+      : codepointToChar(cp);
+  }
   let text = codepointToChar(cp);
   if (variation != null && variation > 0) {
     text = applyVariation(text, variation);
@@ -137,6 +187,36 @@ function rangesOverlap(
   bTo: number
 ): boolean {
   return aFrom < bTo && bFrom < aTo;
+}
+
+/**
+ * Parse a composing prefix that may contain
+ * "ni&<dir>" into base word and direction.
+ */
+function parseNiDirPrefix(
+  prefix: string
+): { base: string; dir: string } | null {
+  const m = prefix.match(
+    /^(ni)&([<^>v]{0,2})$/
+  );
+  if (!m) return null;
+  return { base: m[1], dir: m[2] };
+}
+
+/**
+ * Check if a ni direction string is complete
+ * and unambiguous (can auto-commit).
+ * 2-char directions and "v" are always final;
+ * "^", "<", ">" could extend to 2-char combos.
+ */
+function isCompleteNiDir(
+  dirStr: string
+): boolean {
+  if (!niDirectionByVerbatim(dirStr)) {
+    return false;
+  }
+  if (dirStr.length === 2) return true;
+  return dirStr === "v";
 }
 
 export const Autocomplete = Extension.create({
@@ -168,6 +248,12 @@ export const Autocomplete = Extension.create({
       this.editor.view.dispatch(tr);
     };
 
+    // --- ni direction input mode ---
+    // Tracks direction chars after "&" when
+    // composing "ni". null = not in direction
+    // mode. "" = just entered (after &).
+    let niDirBuf: string | null = null;
+
     return [
       new Plugin({
         key: autocompletePluginKey,
@@ -183,6 +269,7 @@ export const Autocomplete = Extension.create({
               autocompletePluginKey
             );
             if (meta?.dismiss) {
+              niDirBuf = null;
               return {
                 ...EMPTY_STATE,
                 verbatimRange:
@@ -195,6 +282,12 @@ export const Autocomplete = Extension.create({
               return {
                 ...prev,
                 activeIndex: meta.activeIndex,
+              };
+            }
+            if (meta && "niDirBuf" in meta) {
+              return {
+                ...prev,
+                niDirBuf: meta.niDirBuf,
               };
             }
 
@@ -234,9 +327,7 @@ export const Autocomplete = Extension.create({
               !composing ||
               composing.word.length < 1
             ) {
-              // If no composing word, clear
-              // verbatimRange only if cursor moved
-              // away (no overlap possible)
+              niDirBuf = null;
               return {
                 ...EMPTY_STATE,
                 verbatimRange,
@@ -266,21 +357,26 @@ export const Autocomplete = Extension.create({
                   composing.to
                 ),
               };
-              // Suppress popup
+              niDirBuf = null;
               return {
                 ...EMPTY_STATE,
                 verbatimRange,
               };
             }
 
+            // Strip "ni&..." suffix for lookup
+            const niDir =
+              parseNiDirPrefix(composing.word);
+            const lookupWord = niDir
+              ? niDir.base
+              : composing.word;
+
             const matches = wordsByPrefix(
-              composing.word
+              lookupWord
             ).slice(0, MAX_SUGGESTIONS);
 
             if (matches.length === 0) {
-              // No tp words match this prefix —
-              // auto-mark as verbatim so ligatures
-              // are suppressed
+              niDirBuf = null;
               const vr = verbatimRange
                 ? {
                     from: Math.min(
@@ -302,10 +398,15 @@ export const Autocomplete = Extension.create({
               };
             }
 
+            const prevNiDir =
+              parseNiDirPrefix(prev.prefix);
+            const prevLookup = prevNiDir
+              ? prevNiDir.base
+              : prev.prefix;
             const sameRoot =
-              prev.prefix.length > 0 &&
-              composing.word.startsWith(
-                prev.prefix
+              prevLookup.length > 0 &&
+              lookupWord.startsWith(
+                prevLookup
               );
             const activeIndex = sameRoot
               ? Math.min(
@@ -324,6 +425,7 @@ export const Autocomplete = Extension.create({
                 to: composing.to,
               },
               verbatimRange,
+              niDirBuf,
             };
           },
         },
@@ -338,23 +440,38 @@ export const Autocomplete = Extension.create({
 
             const decos: Decoration[] = [];
 
-            // Composing text decoration
-            if (
-              st.range &&
-              st.prefix.length > 0
-            ) {
-              decos.push(
-                Decoration.inline(
-                  st.range.from,
-                  st.range.to,
-                  { class: "composing-text" }
-                )
-              );
-            }
+            // Suppress ligatures on all Latin
+            // text runs so the font doesn't
+            // render them as sitelen pona glyphs
+            state.doc.descendants(
+              (node, pos) => {
+                if (
+                  !node.isText ||
+                  !node.text
+                ) {
+                  return;
+                }
+                const re = /[a-zA-Z&]+/g;
+                let m;
+                while (
+                  (m = re.exec(node.text)) !==
+                  null
+                ) {
+                  decos.push(
+                    Decoration.inline(
+                      pos + m.index,
+                      pos + m.index + m[0].length,
+                      {
+                        class:
+                          "composing-text",
+                      }
+                    )
+                  );
+                }
+              }
+            );
 
-            // Verbatim text decoration —
-            // suppress ligatures so the font
-            // doesn't render Latin as glyphs
+            // Verbatim text decoration
             if (st.verbatimRange) {
               decos.push(
                 Decoration.inline(
@@ -374,6 +491,156 @@ export const Autocomplete = Extension.create({
             );
           },
           handleKeyDown(view, event) {
+            // ni direction input mode: intercept
+            // direction chars after "&"
+            if (niDirBuf !== null) {
+              const ps =
+                autocompletePluginKey.getState(
+                  view.state
+                ) as
+                  | AutocompleteState
+                  | undefined;
+              if (
+                !ps ||
+                ps.matches.length === 0
+              ) {
+                niDirBuf = null;
+              } else {
+                // Ignore modifier-only keys
+                // (Shift fires before ^, <, >)
+                if (
+                  event.key === "Shift" ||
+                  event.key === "Control" ||
+                  event.key === "Alt" ||
+                  event.key === "Meta"
+                ) {
+                  return false;
+                }
+                const curRange = ps.range;
+                if (event.key === "Escape") {
+                  niDirBuf = null;
+                  view.dispatch(
+                    view.state.tr.setMeta(
+                      autocompletePluginKey,
+                      { niDirBuf: null }
+                    )
+                  );
+                  event.preventDefault();
+                  return true;
+                }
+                if (
+                  event.key === "Backspace"
+                ) {
+                  if (niDirBuf.length > 0) {
+                    niDirBuf =
+                      niDirBuf.slice(0, -1);
+                  } else {
+                    niDirBuf = null;
+                  }
+                  view.dispatch(
+                    view.state.tr.setMeta(
+                      autocompletePluginKey,
+                      { niDirBuf }
+                    )
+                  );
+                  event.preventDefault();
+                  return true;
+                }
+                const dirChars = new Set([
+                  "<", "^", ">", "v",
+                ]);
+                if (dirChars.has(event.key)) {
+                  const next =
+                    niDirBuf + event.key;
+                  const dir =
+                    niDirectionByVerbatim(
+                      next
+                    );
+                  if (dir) {
+                    if (
+                      next.length === 2 ||
+                      next === "v"
+                    ) {
+                      // Complete: commit now
+                      if (curRange) {
+                        commitWord(
+                          "ni",
+                          curRange.from,
+                          curRange.to,
+                          dir.index
+                        );
+                      }
+                      niDirBuf = null;
+                    } else {
+                      niDirBuf = next;
+                      view.dispatch(
+                        view.state.tr.setMeta(
+                          autocompletePluginKey,
+                          { niDirBuf: next }
+                        )
+                      );
+                    }
+                  } else {
+                    // Invalid combo: commit
+                    // what we have
+                    const prev =
+                      niDirectionByVerbatim(
+                        niDirBuf
+                      );
+                    if (prev && curRange) {
+                      commitWord(
+                        "ni",
+                        curRange.from,
+                        curRange.to,
+                        prev.index
+                      );
+                    }
+                    niDirBuf = null;
+                  }
+                  event.preventDefault();
+                  return true;
+                }
+                if (
+                  event.key === " " ||
+                  event.key === "Tab" ||
+                  event.key === "Enter"
+                ) {
+                  const dir = niDirBuf
+                    ? niDirectionByVerbatim(
+                        niDirBuf
+                      )
+                    : null;
+                  if (curRange) {
+                    commitWord(
+                      "ni",
+                      curRange.from,
+                      curRange.to,
+                      dir ? dir.index : null
+                    );
+                  }
+                  niDirBuf = null;
+                  event.preventDefault();
+                  return true;
+                }
+                // Other key: commit buffer
+                const dir = niDirBuf
+                  ? niDirectionByVerbatim(
+                      niDirBuf
+                    )
+                  : null;
+                if (curRange) {
+                  commitWord(
+                    "ni",
+                    curRange.from,
+                    curRange.to,
+                    dir ? dir.index : null
+                  );
+                }
+                niDirBuf = null;
+                return false;
+              }
+            }
+
             // Escape: dismiss popup and mark
             // composing word as verbatim. Handled
             // before the matches check so it works
@@ -417,6 +684,7 @@ export const Autocomplete = Extension.create({
               matches,
               activeIndex,
               range,
+              prefix,
             } = pluginState;
 
             // Space/Tab/Enter: accept highlighted
@@ -431,10 +699,27 @@ export const Autocomplete = Extension.create({
               if (!word) return false;
 
               event.preventDefault();
+              // Parse ni direction from prefix
+              const niDir =
+                parseNiDirPrefix(prefix);
+              let variation: number | null =
+                null;
+              if (
+                niDir &&
+                word === "ni" &&
+                niDir.dir.length > 0
+              ) {
+                const dir =
+                  niDirectionByVerbatim(
+                    niDir.dir
+                  );
+                if (dir) variation = dir.index;
+              }
               commitWord(
                 word,
                 range.from,
-                range.to
+                range.to,
+                variation
               );
               return true;
             }
@@ -471,25 +756,52 @@ export const Autocomplete = Extension.create({
             }
 
             // Digit keys: commit with variation
-            const digit = parseInt(event.key, 10);
-            if (!isNaN(digit)) {
-              const word =
-                matches[activeIndex]?.word;
-              if (!word || !range) return false;
-
-              if (!hasVariations(word)) {
-                return false;
-              }
-
-              event.preventDefault();
-              const variation =
-                digit === 0 ? null : digit;
-              commitWord(
-                word,
-                range.from,
-                range.to,
-                variation
+            // (skip if in ni direction mode)
+            const niDirActive =
+              parseNiDirPrefix(prefix);
+            if (!niDirActive) {
+              const digit = parseInt(
+                event.key, 10
               );
+              if (!isNaN(digit)) {
+                const word =
+                  matches[activeIndex]?.word;
+                if (!word || !range) {
+                  return false;
+                }
+
+                if (!hasVariations(word)) {
+                  return false;
+                }
+
+                event.preventDefault();
+                const variation =
+                  digit === 0 ? null : digit;
+                commitWord(
+                  word,
+                  range.from,
+                  range.to,
+                  variation
+                );
+                return true;
+              }
+            }
+
+            // & key: enter ni direction mode
+            if (
+              event.key === "&" &&
+              matches[activeIndex]?.word ===
+                "ni" &&
+              range
+            ) {
+              niDirBuf = "";
+              view.dispatch(
+                view.state.tr.setMeta(
+                  autocompletePluginKey,
+                  { niDirBuf: "" }
+                )
+              );
+              event.preventDefault();
               return true;
             }
 
@@ -565,40 +877,116 @@ export const Autocomplete = Extension.create({
             return null;
           }
 
+          // Check if word overlaps verbatimRange
+          const pluginState =
+            autocompletePluginKey.getState(
+              newState
+            ) as AutocompleteState | undefined;
+          const checkVerbatim = (
+            wFrom: number,
+            wTo: number
+          ) => {
+            if (!pluginState?.verbatimRange) {
+              return false;
+            }
+            const vr =
+              pluginState.verbatimRange;
+            return rangesOverlap(
+              wFrom, wTo, vr.from, vr.to
+            );
+          };
+
+          const textStart =
+            $from.pos - textNode.text.length;
+
+          // Auto-commit complete ni directions
+          // (no trailing space needed)
+          const niAutoMatch =
+            textNode.text.match(
+              /(ni&([<^>v]{1,2}))$/i
+            );
+          if (niAutoMatch) {
+            const fullStr =
+              niAutoMatch[1].toLowerCase();
+            const dirStr = niAutoMatch[2];
+            if (isCompleteNiDir(dirStr)) {
+              const dir =
+                niDirectionByVerbatim(dirStr);
+              if (dir) {
+                const ucsur = wordToUcsur(
+                  "ni", dir.index
+                );
+                if (ucsur) {
+                  const wFrom =
+                    textStart +
+                    textNode.text.length -
+                    fullStr.length;
+                  const wTo =
+                    textStart +
+                    textNode.text.length;
+                  if (!checkVerbatim(
+                    wFrom, wTo
+                  )) {
+                    return newState.tr
+                      .insertText(
+                        ucsur, wFrom, wTo
+                      );
+                  }
+                }
+              }
+            }
+          }
+
+          // Word + space auto-commit
           const result = extractWordBeforeSpace(
             textNode.text
           );
           if (!result) return null;
 
           const { word, start } = result;
+
+          // Handle ni&<dir> + space
+          const niDir =
+            parseNiDirPrefix(word);
+          if (niDir) {
+            if (niDir.dir.length === 0) {
+              return null;
+            }
+            const dir = niDirectionByVerbatim(
+              niDir.dir
+            );
+            if (!dir) return null;
+            const ucsur = wordToUcsur(
+              "ni", dir.index
+            );
+            if (!ucsur) return null;
+            const wordFrom =
+              textStart + start;
+            const wordTo =
+              textStart + start + word.length;
+            if (checkVerbatim(
+              wordFrom, wordTo
+            )) {
+              return null;
+            }
+            return newState.tr.insertText(
+              ucsur, wordFrom, wordTo
+            );
+          }
+
           if (!isWord(word)) return null;
 
           const ucsur = wordToUcsur(word);
           if (!ucsur) return null;
 
-          const textStart =
-            $from.pos - textNode.text.length;
           const wordFrom = textStart + start;
           const wordTo =
             textStart + start + word.length;
 
-          // Check if word overlaps verbatimRange
-          const pluginState =
-            autocompletePluginKey.getState(
-              newState
-            ) as AutocompleteState | undefined;
-          if (pluginState?.verbatimRange) {
-            const vr = pluginState.verbatimRange;
-            if (
-              rangesOverlap(
-                wordFrom,
-                wordTo,
-                vr.from,
-                vr.to
-              )
-            ) {
-              return null;
-            }
+          if (checkVerbatim(
+            wordFrom, wordTo
+          )) {
+            return null;
           }
 
           const tr = newState.tr.insertText(

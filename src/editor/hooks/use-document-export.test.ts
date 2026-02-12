@@ -102,11 +102,11 @@ describe("useDocumentExport", () => {
 
       expect(result.current.latin).toBe("ni");
 
-      // UCSUR char + variation selector
+      // UCSUR char + ZWJ + arrow (up)
       const niChar = codepointToChar(0xF1941);
-      const vs = String.fromCodePoint(0xFE01);
+      const zwj = String.fromCodePoint(0x200D);
       expect(result.current.ucsur).toBe(
-        niChar + vs
+        niChar + zwj + "\u2191"
       );
       editor.destroy();
     }

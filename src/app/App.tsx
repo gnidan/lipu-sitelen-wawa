@@ -11,7 +11,7 @@ export function App() {
       <header className="app__header">
         <h1><SP>lipu+sitelen wawa</SP></h1>
         <p className="app__subtitle">
-          <SP>o sitelen lon(ni)</SP>
+          <SP>o sitelen lon(ni&amp;&lt;v)</SP>
         </p>
       </header>
       <main className="app__main">

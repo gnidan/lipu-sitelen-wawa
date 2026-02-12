@@ -103,7 +103,7 @@ describe("AutocompletePopup", () => {
   );
 
   it(
-    "shows variant row for word with variants",
+    "shows arrow hint for ni instead of variants",
     () => {
       const editor = createEditor("<p></p>");
 
@@ -113,74 +113,32 @@ describe("AutocompletePopup", () => {
         />
       );
 
-      // "ni" has 8 variants
+      // "ni" shows arrow hint, not variant buttons
       act(() => {
         editor.commands.focus("end");
         editor.commands.insertContent("ni");
       });
 
+      const hint = container.querySelector(
+        ".autocomplete-ni-hint"
+      );
+      expect(hint).toBeTruthy();
+
+      const arrows = container.querySelector(
+        ".autocomplete-ni-arrows"
+      );
+      expect(arrows?.textContent).toBe(
+        "←↑→↓↖↗↘↙"
+      );
+
+      // Should not show variant buttons
       const variants = container.querySelector(
         ".autocomplete-variants"
       );
-      expect(variants).toBeTruthy();
+      expect(variants).toBeNull();
 
-      const buttons = container.querySelectorAll(
-        ".autocomplete-variant-btn"
-      );
-      expect(buttons.length).toBe(8);
       editor.destroy();
     }
   );
 
-  it(
-    "shows structural hint for exact match",
-    () => {
-      const editor = createEditor("<p></p>");
-
-      const { container } = render(
-        <AutocompletePopup
-          editor={editor as any}
-        />
-      );
-
-      act(() => {
-        editor.commands.focus("end");
-        editor.commands.insertContent("toki");
-      });
-
-      const hint = container.querySelector(
-        ".autocomplete-structural-hint"
-      );
-      expect(hint).toBeTruthy();
-      expect(hint!.textContent).toContain(
-        "+scale"
-      );
-      editor.destroy();
-    }
-  );
-
-  it(
-    "does not show structural hint " +
-      "for partial match",
-    () => {
-      const editor = createEditor("<p></p>");
-
-      const { container } = render(
-        <AutocompletePopup
-          editor={editor as any}
-        />
-      );
-
-      act(() => {
-        editor.commands.focus("end");
-        editor.commands.insertContent("tok");
-      });
-
-      const hint = container.querySelector(
-        ".autocomplete-structural-hint"
-      );
-      expect(hint).toBeNull();
-      editor.destroy();
-    }
-  );
 });

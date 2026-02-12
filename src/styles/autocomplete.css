@@ -100,6 +100,106 @@
   color: #999;
 }
 
+/* Ni direction compass */
+.autocomplete-compass {
+  display: grid;
+  grid-template-areas:
+    ".    up     ."
+    "left center right"
+    ".    down   .";
+  grid-template-columns: repeat(3, 36px);
+  grid-template-rows: repeat(3, 36px);
+  gap: 2px;
+  justify-content: center;
+  padding: 6px 10px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.compass-key {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  cursor: default;
+  transition:
+    background 0.1s,
+    border-color 0.1s,
+    opacity 0.1s;
+}
+
+.compass-key--enabled {
+  background: #fafafa;
+  border-color: #e0e0e0;
+  cursor: pointer;
+}
+
+.compass-key--enabled:hover {
+  background: #f0f0ff;
+  border-color: #aaa;
+}
+
+.compass-key--buffered {
+  background: rgba(100, 100, 255, 0.12);
+  border-color: #88f;
+}
+
+.compass-key--disabled {
+  opacity: 0.2;
+}
+
+.compass-arrow {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.compass-keylabel {
+  font-family: monospace;
+  font-size: 0.55rem;
+  color: #999;
+  line-height: 1;
+}
+
+.compass-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.compass-glyph {
+  font-family: "nasin-nanpa-ucsur", sans-serif;
+  font-size: 1.4rem;
+  line-height: 1;
+  font-feature-settings: "liga" 1, "calt" 1;
+}
+
+/* Ni direction arrow hint (before & is pressed) */
+.autocomplete-ni-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 4px 10px 6px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.autocomplete-ni-arrows {
+  font-size: 0.8rem;
+  color: #999;
+  letter-spacing: 2px;
+}
+
+.autocomplete-ni-key {
+  font-family: monospace;
+  font-size: 0.65rem;
+  color: #bbb;
+  border: 1px solid #e0e0e0;
+  border-radius: 3px;
+  padding: 1px 5px;
+  background: #fafafa;
+}
+
 .autocomplete-structural-hint {
   text-align: center;
   font-family: monospace;

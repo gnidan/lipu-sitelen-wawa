@@ -2439,7 +2439,9 @@ export function SelectionMenu({
                     )}
                   </span>
                   <span className="variant-label">
-                    {niDir ? niDir.arrow : v.index}
+                    {niDir
+                      ? `${v.index} ${niDir.arrow}`
+                      : v.index}
                   </span>
                 </button>
               );
