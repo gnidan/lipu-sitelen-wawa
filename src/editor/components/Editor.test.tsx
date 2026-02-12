@@ -30,11 +30,11 @@ describe("Editor", () => {
     ).toBeTruthy();
   });
 
-  it("contains latin panel", () => {
+  it("hides latin panel when editor is empty", () => {
     const { container } = render(<Editor />);
     expect(
       container.querySelector(".latin-panel")
-    ).toBeTruthy();
+    ).toBeNull();
   });
 
 

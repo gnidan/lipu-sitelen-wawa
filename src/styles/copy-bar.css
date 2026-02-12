@@ -4,10 +4,9 @@
 }
 
 .latin-panel__toggle {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
   padding: 8px 16px;
   border: none;
   background: none;
@@ -15,20 +14,8 @@
   transition: background 0.1s;
 }
 
-.latin-panel__toggle:hover:not(:disabled) {
+.latin-panel__toggle:hover {
   background: #f0f0f0;
-}
-
-.latin-panel__toggle--empty {
-  cursor: default;
-}
-
-.latin-panel__toggle--empty .latin-panel__label {
-  color: #ccc;
-}
-
-.latin-panel__toggle--empty .latin-panel__arrow {
-  color: #ccc;
 }
 
 .latin-panel__label {

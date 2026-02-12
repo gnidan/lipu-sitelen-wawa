@@ -67,6 +67,6 @@ describe("CopyBar", () => {
     );
     expect(
       container.querySelector(".latin-panel")
-    ).toBeTruthy();
+    ).toBeNull();
   });
 });

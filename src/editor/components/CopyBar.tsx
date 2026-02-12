@@ -11,9 +11,10 @@ export function CopyBar({ editor }: CopyBarProps) {
   const [open, setOpen] = useState(false);
   const empty = !latin;
 
+  if (empty) return null;
+
   const cls = "latin-panel__toggle"
-    + (open ? " latin-panel__toggle--open" : "")
-    + (empty ? " latin-panel__toggle--empty" : "");
+    + (open ? " latin-panel__toggle--open" : "");
 
   return (
     <div className="latin-panel">
@@ -21,7 +22,6 @@ export function CopyBar({ editor }: CopyBarProps) {
         type="button"
         className={cls}
         onClick={() => setOpen(!open)}
-        disabled={empty}
       >
         <span className="latin-panel__arrow">
           {"\u25B6"}
