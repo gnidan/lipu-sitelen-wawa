@@ -45,6 +45,15 @@ function createEditor(content = "") {
   });
 }
 
+function mockCoordsAtPos(editor: Editor) {
+  (editor as any).view.coordsAtPos = () => ({
+    left: 100,
+    right: 110,
+    top: 190,
+    bottom: 200,
+  });
+}
+
 describe("SelectionMenu", () => {
   afterEach(cleanup);
 
@@ -72,6 +81,7 @@ describe("SelectionMenu", () => {
     () => {
       const editor = createEditor("<p></p>");
       editor.commands.insertSitelenPona("ni");
+      mockCoordsAtPos(editor);
 
       const { container } = render(
         <SelectionMenu
@@ -86,7 +96,6 @@ describe("SelectionMenu", () => {
             text: "\uD83C",
             from: 1,
             to: 3,
-            coords: { left: 100, top: 200 },
             singleGlyphWithVariants: {
               word: "ni",
             },
@@ -130,6 +139,7 @@ describe("SelectionMenu", () => {
     () => {
       const editor = createEditor("<p></p>");
       editor.commands.insertSitelenPona("ni");
+      mockCoordsAtPos(editor);
 
       const { container } = render(
         <SelectionMenu
@@ -144,7 +154,6 @@ describe("SelectionMenu", () => {
             text: "",
             from: 1,
             to: 3,
-            coords: { left: 100, top: 200 },
             singleGlyphWithVariants: {
               word: "ni",
             },
@@ -192,6 +201,7 @@ describe("SelectionMenu", () => {
   it("shows default option with key 0", () => {
     const editor = createEditor("<p></p>");
     editor.commands.insertSitelenPona("ni");
+    mockCoordsAtPos(editor);
 
     const { container } = render(
       <SelectionMenu
@@ -206,7 +216,6 @@ describe("SelectionMenu", () => {
           text: "",
           from: 1,
           to: 3,
-          coords: { left: 100, top: 200 },
           singleGlyphWithVariants: {
             word: "ni",
           },

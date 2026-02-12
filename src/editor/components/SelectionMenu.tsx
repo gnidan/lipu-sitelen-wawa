@@ -79,7 +79,6 @@ interface SelectionAnalysis {
   text: string;
   from: number;
   to: number;
-  coords: { left: number; top: number } | null;
 
   singleGlyphWithVariants: {
     word: string;
@@ -532,20 +531,23 @@ function analyzeSelection(
       END_OF_LONG_GLYPH
     );
 
-  // Conversion previews
+  // Conversion previews (use "\n" as block
+  // separator so multi-paragraph selections
+  // show line breaks)
+  const previewText =
+    state.doc.textBetween(from, to, "\n");
   const verbatimPreview =
     (containsUcsur || containsUcsurControl)
-      ? toVerbatim(text)
+      ? toVerbatim(previewText)
       : null;
   const sitelenPonaPreview = containsLatin
-    ? fromVerbatim(text)
+    ? fromVerbatim(previewText)
     : null;
 
   return {
     text,
     from,
     to,
-    coords: null,
     singleGlyphWithVariants,
     containsUcsur,
     containsLatin,
@@ -578,7 +580,6 @@ export function createSelectionMenuPlugin() {
           selectionMenuPluginKey
         );
         if (meta !== undefined) return meta;
-        if (tr.docChanged) return null;
         return analyzeSelection(newState);
       },
     },
@@ -647,27 +648,6 @@ export function createSelectionMenuPlugin() {
       },
     },
 
-    view() {
-      return {
-        update(view) {
-          const st =
-            selectionMenuPluginKey.getState(
-              view.state
-            ) as SelectionAnalysis | null;
-          if (!st) return;
-
-          try {
-            const c = view.coordsAtPos(st.from);
-            st.coords = {
-              left: c.left,
-              top: c.bottom,
-            };
-          } catch {
-            // coordsAtPos can throw
-          }
-        },
-      };
-    },
   });
 }
 
@@ -959,16 +939,58 @@ function removeJoiners(
 function convertToVerbatim(
   editor: Editor,
   from: number,
-  to: number,
-  text: string
+  to: number
 ): void {
-  const verbatim = toVerbatim(text);
   const markType =
     editor.schema.marks.verbatim;
   const tr = editor.state.tr;
-  tr.insertText(verbatim, from, to);
-  const newTo = from + verbatim.length;
-  tr.addMark(from, newTo, markType.create());
+
+  // Collect per-block ranges
+  const blocks: {
+    from: number;
+    to: number;
+    text: string;
+  }[] = [];
+  editor.state.doc.nodesBetween(
+    from,
+    to,
+    (node, pos) => {
+      if (!node.isTextblock) return;
+      const blockFrom = Math.max(
+        from,
+        pos + 1
+      );
+      const blockTo = Math.min(
+        to,
+        pos + 1 + node.content.size
+      );
+      if (blockFrom >= blockTo) return;
+      blocks.push({
+        from: blockFrom,
+        to: blockTo,
+        text: editor.state.doc.textBetween(
+          blockFrom,
+          blockTo
+        ),
+      });
+    }
+  );
+
+  // Process in reverse to preserve positions
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    const block = blocks[i];
+    const verbatim = toVerbatim(block.text);
+    tr.insertText(verbatim, block.from, block.to);
+  }
+
+  // Add mark across the full mapped range
+  const mappedFrom = tr.mapping.map(from);
+  const mappedTo = tr.mapping.map(to);
+  tr.addMark(
+    mappedFrom,
+    mappedTo,
+    markType.create()
+  );
   tr.setMeta(selectionMenuPluginKey, null);
   editor.view.dispatch(tr);
 }
@@ -976,16 +998,54 @@ function convertToVerbatim(
 function convertFromVerbatim(
   editor: Editor,
   from: number,
-  to: number,
-  text: string
+  to: number
 ): void {
-  const sp = fromVerbatim(text);
   const markType =
     editor.schema.marks.verbatim;
   const tr = editor.state.tr;
-  tr.insertText(sp, from, to);
-  const newTo = from + sp.length;
-  tr.removeMark(from, newTo, markType);
+
+  // Collect per-block ranges
+  const blocks: {
+    from: number;
+    to: number;
+    text: string;
+  }[] = [];
+  editor.state.doc.nodesBetween(
+    from,
+    to,
+    (node, pos) => {
+      if (!node.isTextblock) return;
+      const blockFrom = Math.max(
+        from,
+        pos + 1
+      );
+      const blockTo = Math.min(
+        to,
+        pos + 1 + node.content.size
+      );
+      if (blockFrom >= blockTo) return;
+      blocks.push({
+        from: blockFrom,
+        to: blockTo,
+        text: editor.state.doc.textBetween(
+          blockFrom,
+          blockTo
+        ),
+      });
+    }
+  );
+
+  // Process in reverse to preserve positions
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    const block = blocks[i];
+    const sp = fromVerbatim(block.text);
+    tr.insertText(sp, block.from, block.to);
+  }
+
+  // Remove mark across the full mapped range
+  const mappedFrom = tr.mapping.map(from);
+  const mappedTo = tr.mapping.map(to);
+  tr.removeMark(mappedFrom, mappedTo, markType);
   tr.setMeta(selectionMenuPluginKey, null);
   editor.view.dispatch(tr);
 }
@@ -994,6 +1054,21 @@ function convertFromVerbatim(
 
 interface SelectionMenuProps {
   editor: Editor;
+}
+
+const MAX_PREVIEW_LINES = 5;
+
+function truncatePreview(
+  text: string
+): string {
+  const lines = text.split("\n");
+  if (lines.length <= MAX_PREVIEW_LINES) {
+    return text;
+  }
+  return (
+    lines.slice(0, MAX_PREVIEW_LINES).join("\n")
+    + "\n\u2026"
+  );
 }
 
 function glyphChar(
@@ -1014,6 +1089,10 @@ export function SelectionMenu({
 }: SelectionMenuProps) {
   const [analysis, setAnalysis] =
     useState<SelectionAnalysis | null>(null);
+  const [coords, setCoords] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
 
   useEffect(() => {
     const update = () => {
@@ -1021,7 +1100,24 @@ export function SelectionMenu({
         selectionMenuPluginKey.getState(
           editor.state
         ) as SelectionAnalysis | null;
-      setAnalysis(st ?? null);
+      if (!st) {
+        setCoords(null);
+        setAnalysis(null);
+        return;
+      }
+      try {
+        const cFrom =
+          editor.view.coordsAtPos(st.from);
+        const cTo =
+          editor.view.coordsAtPos(st.to);
+        setCoords({
+          left: cFrom.left,
+          top: cTo.bottom,
+        });
+      } catch {
+        setCoords(null);
+      }
+      setAnalysis(st);
     };
 
     editor.on("transaction", update);
@@ -1061,7 +1157,27 @@ export function SelectionMenu({
     [editor, analysis]
   );
 
-  if (!analysis || !analysis.coords) {
+  const preventBlur = useCallback(
+    (e: React.MouseEvent) => e.preventDefault(),
+    []
+  );
+
+  useEffect(() => {
+    const onBlur = () => {
+      requestAnimationFrame(() => {
+        if (!editor.isFocused) {
+          setAnalysis(null);
+          setCoords(null);
+        }
+      });
+    };
+    editor.on("blur", onBlur);
+    return () => {
+      editor.off("blur", onBlur);
+    };
+  }, [editor]);
+
+  if (!analysis || !coords) {
     return null;
   }
 
@@ -1136,8 +1252,8 @@ export function SelectionMenu({
     showConvertToVerbatim || showConvertToSP;
 
   const style: React.CSSProperties = {
-    left: `${analysis.coords.left}px`,
-    top: `${analysis.coords.top + 4}px`,
+    left: `${coords.left}px`,
+    top: `${coords.top + 4}px`,
     position: "fixed",
     zIndex: 100,
   };
@@ -1146,13 +1262,13 @@ export function SelectionMenu({
     <div
       className="selection-menu"
       style={style}
-      onMouseDown={(e) => e.preventDefault()}
     >
       {showVariants && (
         <div className="selection-menu__section">
           <div className="variant-grid">
             <button
               className="variant-option"
+              onMouseDown={preventBlur}
               onClick={() =>
                 handleVariantSelect(0)
               }
@@ -1176,6 +1292,7 @@ export function SelectionMenu({
               <button
                 key={v.index}
                 className="variant-option"
+                onMouseDown={preventBlur}
                 onClick={() =>
                   handleVariantSelect(v.index)
                 }
@@ -1209,6 +1326,7 @@ export function SelectionMenu({
                 className={
                   "selection-menu__action-btn"
                 }
+                onMouseDown={preventBlur}
                 onClick={() =>
                   wrapInCartouche(
                     editor,
@@ -1227,6 +1345,7 @@ export function SelectionMenu({
                 className={
                   "selection-menu__action-btn"
                 }
+                onMouseDown={preventBlur}
                 onClick={() =>
                   unwrapCartouche(
                     editor,
@@ -1245,6 +1364,7 @@ export function SelectionMenu({
                 className={
                   "selection-menu__action-btn"
                 }
+                onMouseDown={preventBlur}
                 onClick={() =>
                   wrapInLongGlyph(
                     editor,
@@ -1272,6 +1392,7 @@ export function SelectionMenu({
                 className={
                   "selection-menu__action-btn"
                 }
+                onMouseDown={preventBlur}
                 onClick={() =>
                   unwrapLongGlyph(
                     editor,
@@ -1290,6 +1411,7 @@ export function SelectionMenu({
                 className={
                   "selection-menu__action-btn"
                 }
+                onMouseDown={preventBlur}
                 onClick={() =>
                   joinWithJoiner(
                     editor,
@@ -1309,6 +1431,7 @@ export function SelectionMenu({
                 className={
                   "selection-menu__action-btn"
                 }
+                onMouseDown={preventBlur}
                 onClick={() =>
                   joinWithJoiner(
                     editor,
@@ -1335,6 +1458,7 @@ export function SelectionMenu({
                     to
                   )
                 }
+                onMouseDown={preventBlur}
                 title="Unstack"
                 type="button"
               >
@@ -1353,6 +1477,7 @@ export function SelectionMenu({
                     to
                   )
                 }
+                onMouseDown={preventBlur}
                 title="Unscale"
                 type="button"
               >
@@ -1371,38 +1496,45 @@ export function SelectionMenu({
                 "selection-menu__convert"
               }
             >
-              <span
+              <div
                 className={
-                  "selection-menu__convert-label"
+                  "selection-menu__convert-header"
                 }
               >
-                Verbatim:
-              </span>
-              <span
+                <span
+                  className={
+                    "selection-menu__convert-label"
+                  }
+                >
+                  Verbatim:
+                </span>
+                <button
+                  className={
+                    "selection-menu__convert-btn"
+                  }
+                  onClick={() =>
+                    convertToVerbatim(
+                      editor,
+                      from,
+                      to
+                    )
+                  }
+                  onMouseDown={preventBlur}
+                  title="Convert to verbatim"
+                  type="button"
+                >
+                  &rarr;
+                </button>
+              </div>
+              <div
                 className={
                   "selection-menu__convert-preview"
                 }
+                style={{ whiteSpace: "pre" }}
                 title={verbatimPreview!}
               >
-                {verbatimPreview}
-              </span>
-              <button
-                className={
-                  "selection-menu__convert-btn"
-                }
-                onClick={() =>
-                  convertToVerbatim(
-                    editor,
-                    from,
-                    to,
-                    text
-                  )
-                }
-                title="Convert to verbatim"
-                type="button"
-              >
-                &rarr;
-              </button>
+                {truncatePreview(verbatimPreview!)}
+              </div>
             </div>
           )}
           {showConvertToSP && (
@@ -1411,42 +1543,51 @@ export function SelectionMenu({
                 "selection-menu__convert"
               }
             >
-              <span
+              <div
                 className={
-                  "selection-menu__convert-label"
+                  "selection-menu__convert-header"
                 }
               >
-                sitelen pona:
-              </span>
-              <span
+                <span
+                  className={
+                    "selection-menu__convert-label"
+                  }
+                >
+                  sitelen pona:
+                </span>
+                <button
+                  className={
+                    "selection-menu__convert-btn"
+                  }
+                  onClick={() =>
+                    convertFromVerbatim(
+                      editor,
+                      from,
+                      to
+                    )
+                  }
+                  onMouseDown={preventBlur}
+                  title={
+                    "Convert to sitelen pona"
+                  }
+                  type="button"
+                >
+                  &rarr;
+                </button>
+              </div>
+              <div
                 className={
                   "selection-menu__convert-preview"
                   + " selection-menu"
                   + "__convert-preview--sp"
                 }
+                style={{ whiteSpace: "pre" }}
                 title={sitelenPonaPreview!}
               >
-                {sitelenPonaPreview}
-              </span>
-              <button
-                className={
-                  "selection-menu__convert-btn"
-                }
-                onClick={() =>
-                  convertFromVerbatim(
-                    editor,
-                    from,
-                    to,
-                    text
-                  )
-                }
-                title={
-                  "Convert to sitelen pona"
-                }
-                type="button"
-              >
-                &rarr;
-              </button>
+                {truncatePreview(
+                  sitelenPonaPreview!
+                )}
+              </div>
             </div>
           )}
         </div>
