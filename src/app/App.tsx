@@ -7,7 +7,6 @@ export function App() {
     <div className="app">
       <header className="app__header">
         <h1>lipu sitelen wawa</h1>
-        <p>sitelen pona rich text editor</p>
       </header>
       <main className="app__main">
         <Editor />

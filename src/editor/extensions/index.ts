@@ -14,3 +14,4 @@ export {
 } from "./structural-chars";
 export { VariantKeymap } from "./variant-keymap";
 export { PasteHandler } from "./paste-handler";
+export { Verbatim } from "./verbatim";

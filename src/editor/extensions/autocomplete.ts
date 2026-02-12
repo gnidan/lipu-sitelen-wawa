@@ -554,6 +554,17 @@ export const Autocomplete = Extension.create({
             return null;
           }
 
+          const verbatimMark =
+            newState.schema.marks.verbatim;
+          if (
+            verbatimMark &&
+            textNode.marks.some(
+              (m) => m.type === verbatimMark
+            )
+          ) {
+            return null;
+          }
+
           const result = extractWordBeforeSpace(
             textNode.text
           );

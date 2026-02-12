@@ -20,16 +20,16 @@ import {
   Autocomplete,
 } from "../extensions/autocomplete";
 import {
-  VariantPopup,
-  createVariantPopupPlugin,
-  variantPopupPluginKey,
-} from "./VariantPopup";
+  SelectionMenu,
+  createSelectionMenuPlugin,
+  selectionMenuPluginKey,
+} from "./SelectionMenu";
 import { getVariations } from "../../data";
 
-const VariantPopupExtension = Extension.create({
-  name: "variantPopupPlugin",
+const SelectionMenuExtension = Extension.create({
+  name: "selectionMenuPlugin",
   addProseMirrorPlugins() {
-    return [createVariantPopupPlugin()];
+    return [createSelectionMenuPlugin()];
   },
 });
 
@@ -39,60 +39,79 @@ function createEditor(content = "") {
       StarterKit,
       SitelenPona,
       Autocomplete,
-      VariantPopupExtension,
+      SelectionMenuExtension,
     ],
     content,
   });
 }
 
-describe("VariantPopup", () => {
+describe("SelectionMenu", () => {
   afterEach(cleanup);
 
   it(
-    "does not render without popup state",
+    "does not render without selection",
     () => {
       const editor = createEditor("<p></p>");
       const { container } = render(
-        <VariantPopup editor={editor as any} />
+        <SelectionMenu
+          editor={editor as any}
+        />
       );
       expect(
-        container.querySelector(".variant-popup")
+        container.querySelector(
+          ".selection-menu"
+        )
       ).toBeNull();
       editor.destroy();
     }
   );
 
   it(
-    "renders when plugin state is set with " +
-      "coords",
+    "renders variant grid when single glyph " +
+      "with variants is set via meta",
     () => {
       const editor = createEditor("<p></p>");
       editor.commands.insertSitelenPona("ni");
 
-      // Render first, then dispatch to trigger
-      // the transaction listener
       const { container } = render(
-        <VariantPopup editor={editor as any} />
+        <SelectionMenu
+          editor={editor as any}
+        />
       );
 
-      // Set popup state via plugin meta
       act(() => {
         const tr = editor.state.tr.setMeta(
-          variantPopupPluginKey,
+          selectionMenuPluginKey,
           {
-            word: "ni",
+            text: "\uD83C",
             from: 1,
             to: 3,
             coords: { left: 100, top: 200 },
+            singleGlyphWithVariants: {
+              word: "ni",
+            },
+            containsUcsur: true,
+            containsLatin: false,
+            isSingleParagraph: true,
+            glyphCount: 1,
+            firstGlyphWord: "ni",
+            hasStackingJoiner: false,
+            hasScalingJoiner: false,
+            insideCartouche: null,
+            insideLongGlyph: null,
+            adjacentLongGlyph: null,
+            precedingLongGlyph: null,
+            verbatimPreview: "ni",
+            sitelenPonaPreview: null,
           }
         );
         editor.view.dispatch(tr);
       });
 
-      const popup = container.querySelector(
-        ".variant-popup"
+      const menu = container.querySelector(
+        ".selection-menu"
       );
-      expect(popup).toBeTruthy();
+      expect(menu).toBeTruthy();
 
       const variations = getVariations("ni");
       const buttons = container.querySelectorAll(
@@ -107,44 +126,64 @@ describe("VariantPopup", () => {
   );
 
   it(
-    "hides popup when dismissed via meta",
+    "hides menu when dismissed via meta",
     () => {
       const editor = createEditor("<p></p>");
       editor.commands.insertSitelenPona("ni");
 
       const { container } = render(
-        <VariantPopup editor={editor as any} />
+        <SelectionMenu
+          editor={editor as any}
+        />
       );
 
-      // Show popup
       act(() => {
         const tr = editor.state.tr.setMeta(
-          variantPopupPluginKey,
+          selectionMenuPluginKey,
           {
-            word: "ni",
+            text: "",
             from: 1,
             to: 3,
             coords: { left: 100, top: 200 },
+            singleGlyphWithVariants: {
+              word: "ni",
+            },
+            containsUcsur: true,
+            containsLatin: false,
+            isSingleParagraph: true,
+            glyphCount: 1,
+            firstGlyphWord: "ni",
+            hasStackingJoiner: false,
+            hasScalingJoiner: false,
+            insideCartouche: null,
+            insideLongGlyph: null,
+            adjacentLongGlyph: null,
+            precedingLongGlyph: null,
+            verbatimPreview: "ni",
+            sitelenPonaPreview: null,
           }
         );
         editor.view.dispatch(tr);
       });
 
       expect(
-        container.querySelector(".variant-popup")
+        container.querySelector(
+          ".selection-menu"
+        )
       ).toBeTruthy();
 
-      // Dismiss popup via null meta
       act(() => {
         const tr = editor.state.tr.setMeta(
-          variantPopupPluginKey,
+          selectionMenuPluginKey,
           null
         );
         editor.view.dispatch(tr);
       });
 
       expect(
-        container.querySelector(".variant-popup")
+        container.querySelector(
+          ".selection-menu"
+        )
       ).toBeNull();
       editor.destroy();
     }
@@ -155,17 +194,31 @@ describe("VariantPopup", () => {
     editor.commands.insertSitelenPona("ni");
 
     const { container } = render(
-      <VariantPopup editor={editor as any} />
+      <SelectionMenu
+        editor={editor as any}
+      />
     );
 
     act(() => {
       const tr = editor.state.tr.setMeta(
-        variantPopupPluginKey,
+        selectionMenuPluginKey,
         {
-          word: "ni",
+          text: "",
           from: 1,
           to: 3,
           coords: { left: 100, top: 200 },
+          singleGlyphWithVariants: {
+            word: "ni",
+          },
+          containsUcsur: true,
+          containsLatin: false,
+          isSingleParagraph: true,
+          glyphCount: 1,
+          containsJoiners: false,
+          insideCartouche: null,
+          insideLongGlyph: null,
+          verbatimPreview: "ni",
+          sitelenPonaPreview: null,
         }
       );
       editor.view.dispatch(tr);

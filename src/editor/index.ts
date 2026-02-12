@@ -1,6 +1,6 @@
 export { Editor } from "./components/Editor";
 export {
-  VariantPopup,
+  SelectionMenu,
   AutocompletePopup,
   CopyBar,
   HelpPanel,

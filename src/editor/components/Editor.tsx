@@ -23,19 +23,22 @@ import {
   PasteHandler,
 } from "../extensions/paste-handler";
 import {
-  createVariantPopupPlugin,
-  VariantPopup,
-} from "./VariantPopup";
+  Verbatim,
+} from "../extensions/verbatim";
+import {
+  createSelectionMenuPlugin,
+  SelectionMenu,
+} from "./SelectionMenu";
 import {
   AutocompletePopup,
 } from "./AutocompletePopup";
 import { CopyBar } from "./CopyBar";
 import { HelpPanel } from "./HelpPanel";
 
-const VariantPopupExtension = Extension.create({
-  name: "variantPopupPlugin",
+const SelectionMenuExtension = Extension.create({
+  name: "selectionMenuPlugin",
   addProseMirrorPlugins() {
-    return [createVariantPopupPlugin()];
+    return [createSelectionMenuPlugin()];
   },
 });
 
@@ -92,8 +95,9 @@ export function Editor() {
       Autocomplete,
       StructuralChars,
       VariantKeymap,
-      VariantPopupExtension,
+      SelectionMenuExtension,
       PasteHandler,
+      Verbatim,
       TextNodeNormalizer,
     ],
   });
@@ -104,7 +108,7 @@ export function Editor() {
         <EditorContent editor={editor} />
         {editor && (
           <>
-            <VariantPopup editor={editor} />
+            <SelectionMenu editor={editor} />
             <AutocompletePopup editor={editor} />
           </>
         )}
