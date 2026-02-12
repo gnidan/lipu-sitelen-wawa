@@ -1,4 +1,5 @@
 import React from "react";
+import { FaGithub } from "react-icons/fa";
 import { Editor } from "../editor";
 import {
   SP,
@@ -26,6 +27,15 @@ export function App() {
             <SP>nasin-nanpa</SP>
           </a>
           <SP>] li tan jan[ijo tan anpa nanpa]</SP>
+        </p>
+        <p>
+          <a
+            href="https://github.com/gnidan/lipu-sitelen-wawa"
+            aria-label="GitHub"
+            className="app__github-link"
+          >
+            <FaGithub size={20} />
+          </a>
         </p>
       </footer>
     </div>

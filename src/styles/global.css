@@ -59,14 +59,25 @@ h1 {
   margin: 0;
 }
 
-.app__footer a {
+.app__footer a:not(.app__github-link) {
   color: #4a7ab5;
   text-decoration: none;
   border-bottom: 1.5px dotted #4a7ab5;
   padding-bottom: 5px;
 }
 
-.app__footer a:hover {
+.app__footer a:not(.app__github-link):hover {
   color: #2d5a8e;
   border-bottom-color: #2d5a8e;
+}
+
+.app__github-link {
+  color: #888;
+  margin-top: 8px;
+  display: inline-block;
+  transition: color 0.15s;
+}
+
+.app__github-link:hover {
+  color: #4a7ab5;
 }
