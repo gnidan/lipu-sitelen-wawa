@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useRef, useMemo } from "react";
 import {
   useEditor,
   EditorContent,
 } from "@tiptap/react";
+import type { JSONContent } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Extension } from "@tiptap/core";
@@ -65,8 +66,34 @@ const TextNodeNormalizer = Extension.create({
   },
 });
 
+const STORAGE_KEY = "lipu-sitelen-wawa:doc";
+
+function loadSavedContent(): JSONContent | undefined {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      return JSON.parse(raw) as JSONContent;
+    }
+  } catch {
+    // corrupt data; start fresh
+  }
+}
+
 export function Editor() {
+  const savedContent = useMemo(loadSavedContent, []);
+  const saveTimer = useRef<ReturnType<typeof setTimeout>>();
+
   const editor = useEditor({
+    content: savedContent,
+    onUpdate({ editor: e }) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => {
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify(e.getJSON())
+        );
+      }, 500);
+    },
     editorProps: {
       attributes: {
         class: "editor-content",
