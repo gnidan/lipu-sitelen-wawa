@@ -8,6 +8,9 @@ import {
 import {
   asciiToUcsurControl,
 } from "../../data/structural-map";
+import {
+  selectionMenuPluginKey,
+} from "../components/SelectionMenu";
 
 export const structuralCharsPluginKey = new PluginKey(
   "structuralChars"
@@ -67,6 +70,15 @@ export const StructuralChars = Extension.create({
               event.altKey ||
               event.metaKey
             ) {
+              return false;
+            }
+
+            // Defer to SelectionMenu when active
+            const smState =
+              selectionMenuPluginKey.getState(
+                view.state
+              );
+            if (smState?.analysis) {
               return false;
             }
 

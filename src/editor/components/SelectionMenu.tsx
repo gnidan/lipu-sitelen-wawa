@@ -102,6 +102,7 @@ interface SelectionAnalysis {
   hasStackingJoiner: boolean;
   hasScalingJoiner: boolean;
   hasLongGlyphMarkers: boolean;
+  hasCartoucheMarkers: boolean;
 
   insideCartouche: WrapInfo | null;
   insideLongGlyph: WrapInfo | null;
@@ -113,6 +114,11 @@ interface SelectionAnalysis {
   // word name of the container glyph when inside
   // a long glyph (the glyph before START marker)
   longGlyphContainerWord: string | null;
+
+  // Verbatim preview of the full cartouche
+  // content (from wrapFrom to wrapTo), used for
+  // the unwrap label when selection is partial
+  cartoucheContentPreview: string | null;
 
   verbatimPreview: string | null;
   sitelenPonaPreview: string | null;
@@ -153,9 +159,18 @@ const ACTION_HINTS: Record<ActionId, string> = {
 
 // ── Wrapper detection helpers ───────────────────
 
-function detectSelectedWrap(
+/**
+ * Detect when the selection overlaps a wrap
+ * structure — i.e. the selection contains a
+ * START or END marker but not both. Find the
+ * matching marker in the block text to get the
+ * full wrap extent.
+ */
+function detectOverlappingWrap(
+  state: EditorState,
   text: string,
   from: number,
+  to: number,
   startCp: number,
   endCp: number
 ): WrapInfo | null {
@@ -165,11 +180,128 @@ function detectSelectedWrap(
     if (cp === startCp) hasStart = true;
     if (cp === endCp) hasEnd = true;
   }
-  if (hasStart && hasEnd) {
+  // Both → detectSelectedWrap handles it.
+  // Neither → no overlap.
+  if (hasStart === hasEnd) return null;
+
+  const $from = state.doc.resolve(from);
+  const parent = $from.parent;
+  if (!parent.isTextblock) return null;
+
+  const blockStart = $from.start();
+  const blockText = parent.textContent;
+
+  if (hasStart && !hasEnd) {
+    // Selection contains START, find END after
+    const relTo = to - blockStart;
+    let depth = 0;
+    for (
+      let i = relTo;
+      i < blockText.length;
+
+    ) {
+      const cp = blockText.codePointAt(i)!;
+      const len = cp > 0xffff ? 2 : 1;
+      if (cp === startCp) depth++;
+      if (cp === endCp) {
+        if (depth > 0) {
+          depth--;
+        } else {
+          // Find the START position in selection
+          const relFrom = from - blockStart;
+          let startPos = -1;
+          for (
+            let j = relFrom;
+            j < relTo;
+
+          ) {
+            const c =
+              blockText.codePointAt(j)!;
+            const l = c > 0xffff ? 2 : 1;
+            if (c === startCp) {
+              startPos = j;
+              break;
+            }
+            j += l;
+          }
+          if (startPos === -1) return null;
+          return {
+            kind: "selected",
+            wrapFrom: blockStart + startPos,
+            wrapTo: blockStart + i + len,
+          };
+        }
+      }
+      i += len;
+    }
+  }
+
+  if (hasEnd && !hasStart) {
+    // Selection contains END, find START before
+    const relFrom = from - blockStart;
+    let depth = 0;
+    for (let i = relFrom - 1; i >= 0; i--) {
+      const cp = blockText.codePointAt(i);
+      if (cp === undefined) continue;
+      if (cp >= 0xdc00 && cp <= 0xdfff) continue;
+      if (cp === endCp) depth++;
+      if (cp === startCp) {
+        if (depth > 0) {
+          depth--;
+        } else {
+          // Find the END position in selection
+          const relTo = to - blockStart;
+          let endPos = -1;
+          for (
+            let j = relFrom;
+            j < relTo;
+
+          ) {
+            const c =
+              blockText.codePointAt(j)!;
+            const l = c > 0xffff ? 2 : 1;
+            if (c === endCp) {
+              endPos = j + l;
+              // Don't break — take last END
+            }
+            j += l;
+          }
+          if (endPos === -1) return null;
+          return {
+            kind: "selected",
+            wrapFrom: blockStart + i,
+            wrapTo: blockStart + endPos,
+          };
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function detectSelectedWrap(
+  text: string,
+  from: number,
+  startCp: number,
+  endCp: number
+): WrapInfo | null {
+  let startOffset = -1;
+  let endOffset = -1;
+  for (const [cp, off] of codepoints(text)) {
+    const len = cp > 0xffff ? 2 : 1;
+    if (cp === startCp && startOffset === -1) {
+      startOffset = off;
+    }
+    if (cp === endCp) {
+      endOffset = off + len;
+    }
+  }
+  if (startOffset >= 0 && endOffset > startOffset) {
     return {
       kind: "selected",
-      wrapFrom: from,
-      wrapTo: from + text.length,
+      wrapFrom: from + startOffset,
+      wrapTo: from + endOffset,
     };
   }
   return null;
@@ -240,13 +372,263 @@ function detectSurroundingWrap(
   };
 }
 
+// ── Selection expansion ─────────────────────────
+
+function isConnectorCp(cp: number): boolean {
+  return (
+    cp === CARTOUCHE_EXTENSION ||
+    cp === STACKING_JOINER ||
+    cp === SCALING_JOINER
+  );
+}
+
+/**
+ * Expands a selection range to include glyphs
+ * connected via CART_EXT or joiners at the
+ * boundaries. E.g. if the selection starts at a
+ * CART_EXT, include the preceding word glyph;
+ * if it ends before a joiner, include the
+ * following word glyph.
+ */
+function expandSelectionRange(
+  state: EditorState,
+  from: number,
+  to: number
+): [number, number] {
+  const $from = state.doc.resolve(from);
+  const $to = state.doc.resolve(to);
+  if (
+    !$from.parent.isTextblock ||
+    $from.parent !== $to.parent
+  ) {
+    return [from, to];
+  }
+
+  const blockStart = $from.start();
+  const blockText = $from.parent.textContent;
+  const cps = [...codepoints(blockText)];
+  const relFrom = from - blockStart;
+  const relTo = to - blockStart;
+
+  // Find codepoint indices for selection bounds
+  let si = cps.findIndex(
+    ([, off]) => off >= relFrom
+  );
+  if (si === -1) si = cps.length;
+  let ei = cps.findIndex(
+    ([, off]) => off >= relTo
+  );
+  if (ei === -1) ei = cps.length;
+
+  // Expand backward: if codepoint at si is a
+  // connector or VS, or the codepoint just
+  // before si is a connector, include preceding
+  // content
+  let moved = true;
+  while (moved && si > 0) {
+    moved = false;
+    const [cp] = cps[si];
+    const prevCp = cps[si - 1][0];
+    if (
+      isConnectorCp(cp) ||
+      isVariationSelector(cp) ||
+      isConnectorCp(prevCp)
+    ) {
+      let i = si - 1;
+      // Skip connectors and VS
+      while (
+        i >= 0 &&
+        (isVariationSelector(cps[i][0]) ||
+          isConnectorCp(cps[i][0]))
+      ) {
+        i--;
+      }
+      if (i >= 0 && isWordGlyph(cps[i][0])) {
+        si = i;
+        moved = true;
+      }
+    }
+  }
+
+  // Expand forward: if codepoint at ei is a
+  // connector, VS, or structural START marker,
+  // or the codepoint just before ei is a
+  // connector, include following content
+  moved = true;
+  while (moved && ei < cps.length) {
+    moved = false;
+    const [cp] = cps[ei];
+    const lastCp =
+      ei > 0 ? cps[ei - 1][0] : 0;
+    if (isVariationSelector(cp)) {
+      ei++;
+      moved = true;
+    } else if (
+      isConnectorCp(cp) || isConnectorCp(lastCp)
+    ) {
+      // Skip past connector(s) and VS
+      while (
+        ei < cps.length &&
+        (isConnectorCp(cps[ei][0]) ||
+          isVariationSelector(cps[ei][0]))
+      ) {
+        ei++;
+      }
+      // Include word glyph
+      if (
+        ei < cps.length &&
+        isWordGlyph(cps[ei][0])
+      ) {
+        ei++;
+        moved = true;
+      }
+    } else if (
+      cp === START_OF_LONG_GLYPH ||
+      cp === START_OF_CARTOUCHE
+    ) {
+      // Scan forward to find matching END
+      const endCp =
+        cp === START_OF_LONG_GLYPH
+          ? END_OF_LONG_GLYPH
+          : END_OF_CARTOUCHE;
+      let depth = 0;
+      let j = ei;
+      while (j < cps.length) {
+        if (cps[j][0] === cp) depth++;
+        if (cps[j][0] === endCp) {
+          depth--;
+          if (depth === 0) {
+            ei = j + 1;
+            moved = true;
+            break;
+          }
+        }
+        j++;
+      }
+    }
+  }
+
+  // Expand backward: if codepoint before si is
+  // an END marker, include preceding structure
+  moved = true;
+  while (moved && si > 0) {
+    moved = false;
+    const prev = cps[si - 1][0];
+    if (
+      prev === END_OF_LONG_GLYPH ||
+      prev === END_OF_CARTOUCHE
+    ) {
+      const startCp =
+        prev === END_OF_LONG_GLYPH
+          ? START_OF_LONG_GLYPH
+          : START_OF_CARTOUCHE;
+      let depth = 0;
+      let j = si - 1;
+      while (j >= 0) {
+        if (cps[j][0] === prev) depth++;
+        if (cps[j][0] === startCp) {
+          depth--;
+          if (depth === 0) {
+            si = j;
+            moved = true;
+            // For long glyph, also include
+            // the container glyph before START
+            if (
+              startCp === START_OF_LONG_GLYPH &&
+              si > 0
+            ) {
+              let k = si - 1;
+              while (
+                k >= 0 &&
+                isVariationSelector(cps[k][0])
+              ) {
+                k--;
+              }
+              if (
+                k >= 0 &&
+                isWordGlyph(cps[k][0])
+              ) {
+                si = k;
+              }
+            }
+            break;
+          }
+        }
+        j--;
+      }
+    }
+  }
+
+  // Balance unmatched delimiters: if the range
+  // contains unmatched STARTs, expand forward to
+  // include their ENDs (and vice versa).
+  const delimPairs: [number, number][] = [
+    [START_OF_LONG_GLYPH, END_OF_LONG_GLYPH],
+    [START_OF_CARTOUCHE, END_OF_CARTOUCHE],
+  ];
+  for (const [startCp, endCp] of delimPairs) {
+    let depth = 0;
+    for (let j = si; j < ei; j++) {
+      if (cps[j][0] === startCp) depth++;
+      if (cps[j][0] === endCp) depth--;
+    }
+    // Unmatched STARTs → expand forward
+    while (depth > 0 && ei < cps.length) {
+      if (cps[ei][0] === endCp) depth--;
+      if (cps[ei][0] === startCp) depth++;
+      ei++;
+    }
+    // Unmatched ENDs → expand backward
+    while (depth < 0 && si > 0) {
+      si--;
+      if (cps[si][0] === startCp) depth++;
+      if (cps[si][0] === endCp) depth--;
+    }
+    // For long glyph, include container glyph
+    // before START if we expanded backward
+    if (
+      startCp === START_OF_LONG_GLYPH &&
+      si > 0 &&
+      cps[si][0] === START_OF_LONG_GLYPH
+    ) {
+      let k = si - 1;
+      while (
+        k >= 0 &&
+        isVariationSelector(cps[k][0])
+      ) {
+        k--;
+      }
+      if (k >= 0 && isWordGlyph(cps[k][0])) {
+        si = k;
+      }
+    }
+  }
+
+  const newFrom =
+    si < cps.length
+      ? blockStart + cps[si][1]
+      : from;
+  const newTo =
+    ei < cps.length
+      ? blockStart + cps[ei][1]
+      : blockStart + blockText.length;
+
+  return [newFrom, newTo];
+}
+
 // ── Selection analysis ──────────────────────────
 
 function analyzeSelection(
   state: EditorState
 ): SelectionAnalysis | null {
-  const { from, to } = state.selection;
-  if (from === to) return null;
+  const sel = state.selection;
+  if (sel.from === sel.to) return null;
+
+  const [from, to] = expandSelectionRange(
+    state,
+    sel.from,
+    sel.to
+  );
 
   const text = state.doc.textBetween(from, to);
   if (text.length === 0) return null;
@@ -292,6 +674,7 @@ function analyzeSelection(
   let hasStackingJoiner = false;
   let hasScalingJoiner = false;
   let hasLongGlyphMarkers = false;
+  let hasCartoucheMarkers = false;
 
   for (const [cp] of codepoints(text)) {
     if (isWordGlyph(cp)) {
@@ -322,6 +705,12 @@ function analyzeSelection(
       cp === END_OF_LONG_GLYPH
     ) {
       hasLongGlyphMarkers = true;
+    }
+    if (
+      cp === START_OF_CARTOUCHE ||
+      cp === END_OF_CARTOUCHE
+    ) {
+      hasCartoucheMarkers = true;
     }
   }
 
@@ -406,7 +795,7 @@ function analyzeSelection(
   }
 
   // Wrapper detection
-  const insideCartouche =
+  let insideCartouche =
     detectSelectedWrap(
       text,
       from,
@@ -419,7 +808,44 @@ function analyzeSelection(
       to,
       START_OF_CARTOUCHE,
       END_OF_CARTOUCHE
+    ) ??
+    detectOverlappingWrap(
+      state,
+      text,
+      from,
+      to,
+      START_OF_CARTOUCHE,
+      END_OF_CARTOUCHE
     );
+
+  // Validate "selected" cartouche: reject if
+  // extra word glyphs exist outside [...]
+  if (insideCartouche?.kind === "selected") {
+    let beforeStart = 0;
+    let afterEnd = 0;
+    let pastStart = false;
+    let pastEnd = false;
+    for (const [cp] of codepoints(text)) {
+      if (
+        !pastStart &&
+        cp === START_OF_CARTOUCHE
+      ) {
+        pastStart = true;
+      } else if (
+        pastStart &&
+        !pastEnd &&
+        cp === END_OF_CARTOUCHE
+      ) {
+        pastEnd = true;
+      } else if (isWordGlyph(cp)) {
+        if (!pastStart) beforeStart++;
+        if (pastEnd) afterEnd++;
+      }
+    }
+    if (beforeStart > 0 || afterEnd > 0) {
+      insideCartouche = null;
+    }
+  }
 
   let insideLongGlyph =
     detectSelectedWrap(
@@ -430,6 +856,14 @@ function analyzeSelection(
     ) ??
     detectSurroundingWrap(
       state,
+      from,
+      to,
+      START_OF_LONG_GLYPH,
+      END_OF_LONG_GLYPH
+    ) ??
+    detectOverlappingWrap(
+      state,
+      text,
       from,
       to,
       START_OF_LONG_GLYPH,
@@ -534,6 +968,20 @@ function analyzeSelection(
     ? fromVerbatim(previewText)
     : null;
 
+  // For unwrap cartouche preview: use the full
+  // cartouche content (stripped of markers)
+  let cartoucheContentPreview: string | null =
+    null;
+  if (insideCartouche) {
+    const cartText = state.doc.textBetween(
+      insideCartouche.wrapFrom,
+      insideCartouche.wrapTo,
+      "\n"
+    );
+    cartoucheContentPreview =
+      toVerbatim(cartText);
+  }
+
   return {
     text,
     from,
@@ -548,11 +996,13 @@ function analyzeSelection(
     hasStackingJoiner,
     hasScalingJoiner,
     hasLongGlyphMarkers,
+    hasCartoucheMarkers,
     insideCartouche,
     insideLongGlyph,
     adjacentLongGlyph,
     precedingLongGlyph,
     longGlyphContainerWord,
+    cartoucheContentPreview,
     verbatimPreview,
     sitelenPonaPreview,
   };
@@ -572,6 +1022,8 @@ function getVisibleActions(
     firstGlyphWord,
     hasStackingJoiner,
     hasScalingJoiner,
+    hasLongGlyphMarkers,
+    hasCartoucheMarkers,
     insideCartouche,
     insideLongGlyph,
     adjacentLongGlyph,
@@ -580,11 +1032,19 @@ function getVisibleActions(
     sitelenPonaPreview,
   } = analysis;
 
+  // Selection spans a structural boundary
+  // (cartouche or long glyph marker, or
+  // adjacent to a long glyph in the document)
+  const spansBoundary =
+    hasCartoucheMarkers ||
+    hasLongGlyphMarkers ||
+    adjacentLongGlyph !== null;
+
   const showWrapCartouche =
     !insideCartouche &&
     containsUcsur &&
     glyphCount >= 1 &&
-    !analysis.hasLongGlyphMarkers;
+    !spansBoundary;
   const showUnwrapCartouche =
     insideCartouche !== null;
   const firstGlyphHasLongForm =
@@ -593,8 +1053,11 @@ function getVisibleActions(
   const showWrapLongGlyph =
     !insideLongGlyph &&
     containsUcsur &&
+    !hasCartoucheMarkers &&
     (
-      adjacentLongGlyph !== null ||
+      (adjacentLongGlyph?.side === "before") ||
+      (adjacentLongGlyph?.side === "after" &&
+        glyphCount === 1) ||
       (firstGlyphHasLongForm &&
         glyphCount >= 2) ||
       precedingLongGlyph !== null
@@ -604,11 +1067,13 @@ function getVisibleActions(
   const showStack =
     glyphCount === 2 &&
     isSingleParagraph &&
-    !hasStackingJoiner;
+    !hasStackingJoiner &&
+    !spansBoundary;
   const showScale =
     glyphCount === 2 &&
     isSingleParagraph &&
-    !hasScalingJoiner;
+    !hasScalingJoiner &&
+    !spansBoundary;
   const showUnstack =
     glyphCount === 2 && hasStackingJoiner;
   const showUnscale =
@@ -1379,9 +1844,20 @@ function glyphChar(
  * verbatim string (parens, brackets, joiners,
  * cartouche extension) and normalize whitespace.
  */
-function stripMarkers(v: string): string {
+function stripCartoucheMarkers(
+  v: string
+): string {
   return v
-    .replace(/[[\](){}=_+\-]/g, " ")
+    .replace(/[[\]=_]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stripLongGlyphMarkers(
+  v: string
+): string {
+  return v
+    .replace(/[()]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -1414,8 +1890,11 @@ function renderActionLabel(
         </span>
       );
     case "unwrapCartouche": {
-      if (singleLine && preview) {
-        const stripped = stripMarkers(preview);
+      const cp =
+        analysis.cartoucheContentPreview;
+      if (cp) {
+        const stripped =
+          stripCartoucheMarkers(cp);
         return (
           <span className={cls}>
             <SP>{stripped}</SP>
@@ -1466,7 +1945,8 @@ function renderActionLabel(
       const container =
         analysis.longGlyphContainerWord ?? first;
       if (singleLine && preview) {
-        const content = stripMarkers(preview);
+        const content =
+          stripLongGlyphMarkers(preview);
         // If container word appears as the first
         // word in content (selected kind includes
         // the container), don't duplicate it
