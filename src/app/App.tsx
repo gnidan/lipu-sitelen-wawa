@@ -19,6 +19,8 @@ export function App() {
       </main>
       <footer className="app__footer">
         <p>
+          <SP>lipu+sitelen wawa li tan jan[kepeken.=nimi.=tan:=]</SP>
+        </p><p>
           <SP>nasin sitelen[</SP>
           <a href="https://github.com/ETBCOR/nasin-nanpa">
             <SP>nasin-nanpa</SP>
