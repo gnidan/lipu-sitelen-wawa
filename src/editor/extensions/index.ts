@@ -1,9 +1,15 @@
-export { SitelenPonaNode } from "./sitelen-pona-node";
-export type {
-  SitelenPonaNodeOptions,
-} from "./sitelen-pona-node";
-export { AutoConvert } from "./auto-convert";
+export { SitelenPona } from "./sitelen-pona";
+export { Autocomplete } from "./autocomplete";
 export {
-  extractWordBeforeSpace,
-} from "./auto-convert";
+  autocompletePluginKey,
+  getComposingWord,
+} from "./autocomplete";
+export type {
+  AutocompleteState,
+} from "./autocomplete";
+export {
+  StructuralChars,
+  isStructuralChar,
+  STRUCTURAL_CHARS,
+} from "./structural-chars";
 export { VariantKeymap } from "./variant-keymap";

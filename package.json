@@ -13,6 +13,7 @@
   "dependencies": {
     "@tiptap/core": "^2.11.5",
     "@tiptap/extension-bubble-menu": "^2.11.5",
+    "@tiptap/extension-placeholder": "^2.27.2",
     "@tiptap/pm": "^2.11.5",
     "@tiptap/react": "^2.11.5",
     "@tiptap/starter-kit": "^2.11.5",

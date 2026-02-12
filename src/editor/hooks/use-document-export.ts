@@ -1,10 +1,14 @@
 import { useMemo } from "react";
 import { Editor } from "@tiptap/core";
 import {
-  wordToCodepoint,
-  codepointToChar,
-  applyVariation,
+  codepointToWord,
+  isUcsurChar,
 } from "../../data";
+import {
+  ucsurControlToAscii,
+  isVariationSelector,
+} from "../../data/structural-map";
+import { isControlChar } from "../../data/control-chars";
 
 export interface DocumentExport {
   latin: string;
@@ -14,64 +18,62 @@ export interface DocumentExport {
 /**
  * Walk a ProseMirror doc and extract parallel Latin
  * and UCSUR representations.
+ *
+ * UCSUR export: raw text content (already UCSUR).
+ * Latin export: reverse-map UCSUR codepoints to
+ * word names, control chars to ASCII, skip
+ * variation selectors.
  */
 function extractDocument(
   editor: Editor
 ): DocumentExport {
-  const latinParts: string[] = [];
-  const ucsurParts: string[] = [];
-
   const { doc } = editor.state;
-  let isFirstBlock = true;
+  const ucsur = doc.textBetween(
+    0,
+    doc.content.size,
+    "\n"
+  );
 
-  doc.forEach((block) => {
-    if (!isFirstBlock) {
-      latinParts.push("\n");
-      ucsurParts.push("\n");
+  const latinParts: string[] = [];
+
+  for (const ch of ucsur) {
+    const cp = ch.codePointAt(0)!;
+
+    // Variation selector -> skip
+    if (isVariationSelector(cp)) {
+      continue;
     }
-    isFirstBlock = false;
 
-    let needsSpace = false;
-
-    block.forEach((node) => {
-      if (node.type.name === "sitelenPona") {
-        const word = node.attrs.word as string;
-        const variation =
-          node.attrs.variation as number | null;
-
-        if (needsSpace) {
-          latinParts.push(" ");
-          ucsurParts.push(" ");
-        }
-
-        latinParts.push(word);
-
-        const cp = wordToCodepoint[word];
-        if (cp !== undefined) {
-          const ch = codepointToChar(cp);
-          if (variation != null) {
-            ucsurParts.push(
-              applyVariation(ch, variation)
-            );
-          } else {
-            ucsurParts.push(ch);
-          }
-        } else {
-          ucsurParts.push(word);
-        }
-
-        needsSpace = true;
-      } else if (node.isText && node.text) {
-        latinParts.push(node.text);
-        ucsurParts.push(node.text);
-        needsSpace = false;
+    // Control char -> ASCII (check before
+    // isUcsurChar since control chars fall in
+    // the same U+F1900-F19FF range)
+    if (isControlChar(cp)) {
+      const ascii = ucsurControlToAscii(cp);
+      if (ascii) {
+        latinParts.push(ascii);
       }
-    });
-  });
+      continue;
+    }
+
+    // UCSUR sitelen pona char
+    if (isUcsurChar(ch)) {
+      const word = codepointToWord[cp];
+      if (word) {
+        latinParts.push(word);
+      } else {
+        latinParts.push(ch);
+      }
+      continue;
+    }
+
+    // Everything else (spaces, Latin text,
+    // newlines) -> pass through
+    latinParts.push(ch);
+  }
 
   return {
     latin: latinParts.join(""),
-    ucsur: ucsurParts.join(""),
+    ucsur,
   };
 }
 

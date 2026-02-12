@@ -1,10 +1,17 @@
 .editor-content {
-  font-family: "nasin-nanpa", sans-serif;
-  font-feature-settings: "liga" 1;
-  font-size: 2rem;
-  line-height: 1.6;
-  padding: 1rem;
-  min-height: 200px;
+  font-family: "nasin-nanpa-ucsur", "nasin-nanpa", sans-serif;
+  font-feature-settings:
+    "liga" 1, "calt" 1, "ccmp" 1 !important;
+  /* Override TipTap's default ligature suppression —
+     nasin-nanpa-ucsur uses GSUB ligatures for
+     combining glyphs (stacking, scaling, long glyph,
+     cartouche, variation selectors). */
+  -webkit-font-variant-ligatures: normal !important;
+  font-variant-ligatures: normal !important;
+  font-size: 3rem;
+  line-height: 1.5;
+  padding: 24px 32px;
+  min-height: 60vh;
   outline: none;
 }
 
@@ -16,21 +23,32 @@
   margin: 0.5em 0;
 }
 
+/* Suppress nasin-nanpa ligatures for text still being
+   composed, so Latin letters stay readable until the
+   word is committed as a UCSUR character. */
+.composing-text {
+  font-feature-settings: "liga" 0 !important;
+}
+
 .editor-wrapper {
-  border: 1px solid #ccc;
-  border-radius: 4px;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
   overflow: hidden;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 }
 
-.sitelen-pona-glyph {
-  font-family: "nasin-nanpa", sans-serif;
-  font-feature-settings: "liga" 1;
-  cursor: default;
-  display: inline;
+.editor-content-wrapper {
+  position: relative;
 }
 
-.sitelen-pona-glyph--selected {
-  background: #d0d0ff;
-  border-radius: 2px;
-  outline: 2px solid #88f;
+/* Placeholder (tiptap Placeholder extension) */
+.editor-content p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 1rem;
+  color: #aaa;
+  pointer-events: none;
+  height: 0;
 }

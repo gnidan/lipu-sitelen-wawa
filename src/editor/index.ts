@@ -1,13 +1,14 @@
 export { Editor } from "./components/Editor";
 export {
-  SitelenPonaGlyph,
   VariantPopup,
-  Toolbar,
-  OutputPanel,
+  AutocompletePopup,
+  CopyBar,
+  HelpPanel,
 } from "./components";
 export {
-  SitelenPonaNode,
-  AutoConvert,
+  SitelenPona,
+  Autocomplete,
+  StructuralChars,
   VariantKeymap,
 } from "./extensions";
 export { useDocumentExport } from "./hooks";

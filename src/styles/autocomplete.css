@@ -1,0 +1,110 @@
+.autocomplete-popup {
+  position: absolute;
+  z-index: 200;
+  background: #fff;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  padding: 4px;
+  max-height: 320px;
+  overflow-y: auto;
+  min-width: 220px;
+}
+
+.autocomplete-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.autocomplete-item:hover,
+.autocomplete-item--active {
+  background: #f0f0ff;
+}
+
+.autocomplete-item__glyph {
+  font-family: "nasin-nanpa-ucsur", sans-serif;
+  font-size: 1.8rem;
+  line-height: 1;
+  width: 2rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.autocomplete-item__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.autocomplete-item__word {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #222;
+}
+
+.autocomplete-item__def {
+  font-size: 0.75rem;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.autocomplete-item__hint {
+  font-size: 0.7rem;
+  color: #999;
+  flex-shrink: 0;
+  font-family: system-ui, sans-serif;
+}
+
+.autocomplete-variants {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 10px 6px;
+}
+
+.autocomplete-variant-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: #fafafa;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+  padding: 0;
+}
+
+.autocomplete-variant-btn:hover {
+  background: #f0f0ff;
+  border-color: #aaa;
+}
+
+.autocomplete-variant-glyph {
+  font-family: "nasin-nanpa-ucsur", sans-serif;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.autocomplete-variant-key {
+  font-family: system-ui, sans-serif;
+  font-size: 0.6rem;
+  color: #999;
+}
+
+.autocomplete-structural-hint {
+  text-align: center;
+  font-family: monospace;
+  font-size: 0.65rem;
+  color: #aaa;
+  padding: 4px 10px 6px;
+  border-top: 1px solid #f0f0f0;
+}

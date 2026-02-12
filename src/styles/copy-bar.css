@@ -1,0 +1,37 @@
+.copy-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-top: 1px solid #e0e0e0;
+  background: #fafafa;
+}
+
+.copy-bar__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 0.85rem;
+  color: #444;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.copy-bar__button:hover {
+  background: #f0f0ff;
+  border-color: #aaa;
+}
+
+.copy-bar__button:active {
+  background: #e0e0ff;
+}
+
+.copy-bar__button--copied {
+  background: #d0ffd0;
+  border-color: #6a6;
+  color: #264;
+}

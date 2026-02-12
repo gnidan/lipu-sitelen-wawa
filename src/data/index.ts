@@ -33,9 +33,16 @@ export {
 export type { VariationInfo } from "./variations";
 
 export {
+  asciiToUcsurControl,
+  ucsurControlToAscii,
+  isVariationSelector,
+} from "./structural-map";
+
+export {
   words,
   isWord,
   getWord,
   wordsByCategory,
+  wordsByPrefix,
 } from "./words";
 export type { WordEntry, WordCategory } from "./words";

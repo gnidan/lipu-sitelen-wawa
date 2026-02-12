@@ -1,40 +1,53 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import {
-  SitelenPonaNode,
-} from "../extensions/sitelen-pona-node";
+  SitelenPona,
+} from "../extensions/sitelen-pona";
 import {
   useDocumentExport,
 } from "./use-document-export";
-import { codepointToChar } from "../../data";
+import {
+  codepointToChar,
+  SCALING_JOINER,
+  START_OF_CARTOUCHE,
+  END_OF_CARTOUCHE,
+  START_OF_LONG_GLYPH,
+  END_OF_LONG_GLYPH,
+} from "../../data";
 
 function createEditor(content = "") {
   return new Editor({
-    extensions: [StarterKit, SitelenPonaNode],
+    extensions: [StarterKit, SitelenPona],
     content,
   });
 }
 
 describe("useDocumentExport", () => {
-  it("returns empty strings for null editor", () => {
-    const { result } = renderHook(() =>
-      useDocumentExport(null)
-    );
-    expect(result.current.latin).toBe("");
-    expect(result.current.ucsur).toBe("");
-  });
+  it(
+    "returns empty strings for null editor",
+    () => {
+      const { result } = renderHook(() =>
+        useDocumentExport(null)
+      );
+      expect(result.current.latin).toBe("");
+      expect(result.current.ucsur).toBe("");
+    }
+  );
 
-  it("returns empty strings for empty doc", () => {
-    const editor = createEditor("<p></p>");
-    const { result } = renderHook(() =>
-      useDocumentExport(editor)
-    );
-    expect(result.current.latin).toBe("");
-    expect(result.current.ucsur).toBe("");
-    editor.destroy();
-  });
+  it(
+    "returns empty strings for empty doc",
+    () => {
+      const editor = createEditor("<p></p>");
+      const { result } = renderHook(() =>
+        useDocumentExport(editor)
+      );
+      expect(result.current.latin).toBe("");
+      expect(result.current.ucsur).toBe("");
+      editor.destroy();
+    }
+  );
 
   it("extracts plain text as-is", () => {
     const editor = createEditor(
@@ -52,46 +65,52 @@ describe("useDocumentExport", () => {
     editor.destroy();
   });
 
-  it("extracts sitelenPona nodes correctly", () => {
-    const editor = createEditor("<p></p>");
-    editor.commands.insertSitelenPona("toki");
-    editor.commands.insertContent(" ");
-    editor.commands.insertSitelenPona("pona");
+  it(
+    "extracts sitelenPona via insertSitelenPona",
+    () => {
+      const editor = createEditor("<p></p>");
+      editor.commands.insertSitelenPona("toki");
+      editor.commands.insertContent(" ");
+      editor.commands.insertSitelenPona("pona");
 
-    const { result } = renderHook(() =>
-      useDocumentExport(editor)
-    );
+      const { result } = renderHook(() =>
+        useDocumentExport(editor)
+      );
 
-    expect(result.current.latin).toBe(
-      "toki pona"
-    );
+      expect(result.current.latin).toBe(
+        "toki pona"
+      );
 
-    const tokiChar = codepointToChar(0xF196C);
-    const ponaChar = codepointToChar(0xF1954);
-    expect(result.current.ucsur).toBe(
-      `${tokiChar} ${ponaChar}`
-    );
-    editor.destroy();
-  });
+      const tokiChar = codepointToChar(0xF196C);
+      const ponaChar = codepointToChar(0xF1954);
+      expect(result.current.ucsur).toBe(
+        `${tokiChar} ${ponaChar}`
+      );
+      editor.destroy();
+    }
+  );
 
-  it("handles variation on UCSUR output", () => {
-    const editor = createEditor("<p></p>");
-    editor.commands.insertSitelenPona("ni", 2);
+  it(
+    "handles variation on UCSUR output",
+    () => {
+      const editor = createEditor("<p></p>");
+      editor.commands.insertSitelenPona("ni", 2);
 
-    const { result } = renderHook(() =>
-      useDocumentExport(editor)
-    );
+      const { result } = renderHook(() =>
+        useDocumentExport(editor)
+      );
 
-    expect(result.current.latin).toBe("ni");
+      expect(result.current.latin).toBe("ni");
 
-    // UCSUR char + variation selector
-    const niChar = codepointToChar(0xF1941);
-    const vs = String.fromCodePoint(0xFE01);
-    expect(result.current.ucsur).toBe(
-      niChar + vs
-    );
-    editor.destroy();
-  });
+      // UCSUR char + variation selector
+      const niChar = codepointToChar(0xF1941);
+      const vs = String.fromCodePoint(0xFE01);
+      expect(result.current.ucsur).toBe(
+        niChar + vs
+      );
+      editor.destroy();
+    }
+  );
 
   it("handles multiple paragraphs", () => {
     const editor = createEditor(
@@ -105,4 +124,95 @@ describe("useDocumentExport", () => {
     );
     editor.destroy();
   });
+
+  it(
+    "maps SCALING_JOINER to + in Latin export",
+    () => {
+      const editor = createEditor("<p></p>");
+      editor.commands.insertSitelenPona("toki");
+      // Insert UCSUR control char directly
+      const joinerChar = String.fromCodePoint(
+        SCALING_JOINER
+      );
+      editor.commands.insertContent(joinerChar);
+      editor.commands.insertSitelenPona("pona");
+
+      const { result } = renderHook(() =>
+        useDocumentExport(editor)
+      );
+
+      expect(result.current.latin).toBe(
+        "toki+pona"
+      );
+
+      const tokiChar = codepointToChar(0xF196C);
+      const ponaChar = codepointToChar(0xF1954);
+      expect(result.current.ucsur).toBe(
+        `${tokiChar}${joinerChar}${ponaChar}`
+      );
+      editor.destroy();
+    }
+  );
+
+  it(
+    "maps cartouche chars in UCSUR to " +
+      "[] in Latin",
+    () => {
+      const editor = createEditor("<p></p>");
+      const startChar = String.fromCodePoint(
+        START_OF_CARTOUCHE
+      );
+      const endChar = String.fromCodePoint(
+        END_OF_CARTOUCHE
+      );
+      editor.commands.insertContent(startChar);
+      editor.commands.insertSitelenPona("toki");
+      editor.commands.insertContent(endChar);
+
+      const { result } = renderHook(() =>
+        useDocumentExport(editor)
+      );
+
+      expect(result.current.latin).toBe(
+        "[toki]"
+      );
+
+      const tokiChar = codepointToChar(0xF196C);
+      expect(result.current.ucsur).toBe(
+        `${startChar}${tokiChar}${endChar}`
+      );
+      editor.destroy();
+    }
+  );
+
+  it(
+    "maps long glyph chars in UCSUR to " +
+      "() in Latin",
+    () => {
+      const editor = createEditor("<p></p>");
+      const startChar = String.fromCodePoint(
+        START_OF_LONG_GLYPH
+      );
+      const endChar = String.fromCodePoint(
+        END_OF_LONG_GLYPH
+      );
+      editor.commands.insertContent(startChar);
+      editor.commands.insertSitelenPona("toki");
+      editor.commands.insertContent(endChar);
+
+      const { result } = renderHook(() =>
+        useDocumentExport(editor)
+      );
+
+      expect(result.current.latin).toBe(
+        "(toki)"
+      );
+
+      const tokiChar = codepointToChar(0xF196C);
+      expect(result.current.ucsur).toBe(
+        `${startChar}${tokiChar}${endChar}`
+      );
+      editor.destroy();
+    }
+  );
 });

@@ -623,3 +623,41 @@ export function wordsByCategory(
     (entry) => entry.category === cat
   );
 }
+
+const CATEGORY_RANK: Record<WordCategory, number> = {
+  core: 0,
+  common: 1,
+  uncommon: 2,
+  obscure: 3,
+  sandbox: 4,
+};
+
+/**
+ * Return words whose name starts with the given
+ * prefix, sorted by relevance: exact match first,
+ * then by category rank, then alphabetical.
+ */
+export function wordsByPrefix(
+  prefix: string
+): WordEntry[] {
+  const lower = prefix.toLowerCase();
+  if (lower.length === 0) return [];
+
+  const matches = Object.values(words).filter(
+    (entry) => entry.word.startsWith(lower)
+  );
+
+  matches.sort((a, b) => {
+    const aExact = a.word === lower ? 0 : 1;
+    const bExact = b.word === lower ? 0 : 1;
+    if (aExact !== bExact) return aExact - bExact;
+
+    const aCat = CATEGORY_RANK[a.category];
+    const bCat = CATEGORY_RANK[b.category];
+    if (aCat !== bCat) return aCat - bCat;
+
+    return a.word.localeCompare(b.word);
+  });
+
+  return matches;
+}

@@ -30,17 +30,17 @@ describe("Editor", () => {
     ).toBeTruthy();
   });
 
-  it("contains toolbar", () => {
+  it("contains copy bar", () => {
     const { container } = render(<Editor />);
     expect(
-      container.querySelector(".toolbar")
+      container.querySelector(".copy-bar")
     ).toBeTruthy();
   });
 
-  it("contains output panel", () => {
+  it("contains help panel", () => {
     const { container } = render(<Editor />);
     expect(
-      container.querySelector(".output-panel")
+      container.querySelector(".help-panel")
     ).toBeTruthy();
   });
 });

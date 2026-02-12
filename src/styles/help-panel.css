@@ -1,0 +1,36 @@
+.help-panel {
+  padding: 8px 16px;
+  border-top: 1px solid #e0e0e0;
+  background: #fafafa;
+}
+
+.help-panel summary {
+  font-size: 0.8rem;
+  color: #888;
+  cursor: pointer;
+  user-select: none;
+}
+
+.help-panel summary:hover {
+  color: #555;
+}
+
+.help-panel__list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 8px 0 4px;
+  padding: 0;
+}
+
+.help-panel__key {
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: #555;
+  text-align: right;
+}
+
+.help-panel__desc {
+  font-size: 0.8rem;
+  color: #777;
+}

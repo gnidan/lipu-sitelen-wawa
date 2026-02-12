@@ -4,6 +4,7 @@ import {
   isWord,
   getWord,
   wordsByCategory,
+  wordsByPrefix,
 } from "./words";
 import { wordToCodepoint } from "./ucsur";
 
@@ -71,6 +72,52 @@ describe("words", () => {
     it("returns sandbox words", () => {
       const sandbox = wordsByCategory("sandbox");
       expect(sandbox.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe("wordsByPrefix", () => {
+    it("returns empty for empty prefix", () => {
+      expect(wordsByPrefix("")).toHaveLength(0);
+    });
+
+    it("returns exact match first", () => {
+      const results = wordsByPrefix("toki");
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].word).toBe("toki");
+    });
+
+    it("returns multiple matches for prefix", () => {
+      const results = wordsByPrefix("to");
+      expect(results.length).toBeGreaterThan(1);
+      // All results should start with "to"
+      for (const r of results) {
+        expect(r.word.startsWith("to")).toBe(true);
+      }
+    });
+
+    it("returns empty for non-matching prefix", () => {
+      expect(wordsByPrefix("xyz")).toHaveLength(0);
+    });
+
+    it("is case insensitive", () => {
+      const lower = wordsByPrefix("tok");
+      const upper = wordsByPrefix("Tok");
+      expect(lower).toEqual(upper);
+    });
+
+    it("sorts core words before uncommon", () => {
+      // "ki" matches core "kili", "kiwen", "kin"
+      // and uncommon "kipisi", "ku", etc.
+      const results = wordsByPrefix("ki");
+      const coreIdx = results.findIndex(
+        (r) => r.category === "core"
+      );
+      const uncommonIdx = results.findIndex(
+        (r) => r.category === "uncommon"
+      );
+      if (coreIdx >= 0 && uncommonIdx >= 0) {
+        expect(coreIdx).toBeLessThan(uncommonIdx);
+      }
     });
   });
 
