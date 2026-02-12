@@ -1359,8 +1359,11 @@ export function createSelectionMenuPlugin() {
         }
 
         // Arrow keys + Enter (action navigation)
+        // Let Shift+Arrow pass through for text
+        // selection expansion
         if (
           event.key === "ArrowDown" &&
+          !event.shiftKey &&
           st.actions.length > 0
         ) {
           const next =
@@ -1377,6 +1380,7 @@ export function createSelectionMenuPlugin() {
 
         if (
           event.key === "ArrowUp" &&
+          !event.shiftKey &&
           st.actions.length > 0
         ) {
           const next =

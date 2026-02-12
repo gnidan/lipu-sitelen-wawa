@@ -23,7 +23,7 @@ export function App() {
           <a href="https://github.com/ETBCOR/nasin-nanpa">
             <SP>nasin-nanpa</SP>
           </a>
-          <SP>] tan jan[ijo tan anpa nanpa]</SP>
+          <SP>] li tan jan[ijo tan anpa nanpa]</SP>
         </p>
       </footer>
     </div>
