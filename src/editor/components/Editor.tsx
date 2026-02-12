@@ -3,6 +3,7 @@ import React, {
   useMemo,
   useState,
   useCallback,
+  useEffect,
 } from "react";
 import {
   useEditor,
@@ -18,10 +19,6 @@ import {
 } from "../extensions/sitelen-pona";
 import {
   Autocomplete,
-  autocompletePluginKey,
-} from "../extensions/autocomplete";
-import type {
-  AutocompleteState,
 } from "../extensions/autocomplete";
 import {
   StructuralChars,
@@ -37,11 +34,7 @@ import {
 } from "../extensions/verbatim";
 import {
   createSelectionMenuPlugin,
-  selectionMenuPluginKey,
   SelectionMenu,
-} from "./SelectionMenu";
-import type {
-  SelectionMenuPluginState,
 } from "./SelectionMenu";
 import {
   AutocompletePopup,
@@ -103,59 +96,34 @@ export function Editor() {
   const saveTimer =
     useRef<ReturnType<typeof setTimeout>>();
   const [helpOpen, setHelpOpen] = useState(false);
-  const helpToggleRef =
-    useRef<(() => void) | null>(null);
-
   const toggleHelp = useCallback(() => {
     setHelpOpen((prev) => !prev);
   }, []);
-  helpToggleRef.current = toggleHelp;
 
-  const HelpKeyExtension = useMemo(() => {
-    const ref = helpToggleRef;
-    return Extension.create({
-      name: "helpKey",
-      addProseMirrorPlugins() {
-        return [
-          new Plugin({
-            props: {
-              handleKeyDown(view, event) {
-                if (event.key !== "?") {
-                  return false;
-                }
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "?") {
+        return;
+      }
 
-                const acState =
-                  autocompletePluginKey.getState(
-                    view.state
-                  ) as
-                    | AutocompleteState
-                    | undefined;
-                if (
-                  acState &&
-                  acState.matches.length > 0
-                ) {
-                  return false;
-                }
+      const active = document.activeElement;
+      if (
+        active instanceof HTMLElement &&
+        active.closest(".ProseMirror")
+      ) {
+        return;
+      }
 
-                const smState =
-                  selectionMenuPluginKey.getState(
-                    view.state
-                  ) as
-                    | SelectionMenuPluginState
-                    | undefined;
-                if (smState?.analysis) {
-                  return false;
-                }
+      toggleHelp();
+    }
 
-                ref.current?.();
-                return true;
-              },
-            },
-          }),
-        ];
-      },
-    });
-  }, []);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener(
+        "keydown", onKeyDown
+      );
+    };
+  }, [toggleHelp]);
 
   const editor = useEditor({
     content: savedContent,
@@ -198,7 +166,6 @@ export function Editor() {
       PasteHandler,
       Verbatim,
       TextNodeNormalizer,
-      HelpKeyExtension,
     ],
   });
 
