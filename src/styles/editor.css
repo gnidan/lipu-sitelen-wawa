@@ -47,8 +47,8 @@
 .editor-content p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   float: left;
-  font-family: system-ui, -apple-system, sans-serif;
-  font-size: 1rem;
+  font-family: "nasin-nanpa-ucsur", sans-serif;
+  font-size: 1.5rem;
   color: #aaa;
   pointer-events: none;
   height: 0;

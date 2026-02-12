@@ -18,7 +18,13 @@ export function App() {
         <Editor />
       </main>
       <footer className="app__footer">
-        <p>nasin nanpa font by ETBCOR</p>
+        <p>
+          <SP>nasin sitelen[</SP>
+          <a href="https://github.com/ETBCOR/nasin-nanpa">
+            <SP>nasin-nanpa</SP>
+          </a>
+          <SP>] tan jan[ijo tan anpa nanpa]</SP>
+        </p>
       </footer>
     </div>
   );

@@ -33,7 +33,7 @@ import {
   AutocompletePopup,
 } from "./AutocompletePopup";
 import { CopyBar } from "./CopyBar";
-import { HelpPanel } from "./HelpPanel";
+
 
 const SelectionMenuExtension = Extension.create({
   name: "selectionMenuPlugin",
@@ -88,9 +88,7 @@ export function Editor() {
       }),
       SitelenPona,
       Placeholder.configure({
-        placeholder:
-          "o sitelen... type words, "
-          + "Space to commit",
+        placeholder: "󱥄󱥠"
       }),
       SelectionMenuExtension,
       Autocomplete,
@@ -114,7 +112,6 @@ export function Editor() {
         )}
       </div>
       <CopyBar editor={editor} />
-      <HelpPanel />
     </div>
   );
 }

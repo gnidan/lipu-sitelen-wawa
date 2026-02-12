@@ -101,6 +101,12 @@ export function toLatin(input: string): string {
     }
 
     // Non-UCSUR character: pass through as-is
+    // Insert space after UCSUR word before Latin
+    // letters (composing words), but not before
+    // punctuation, whitespace, or other symbols.
+    if (needsSpace && /[a-zA-Z]/.test(char)) {
+      result.push(" ");
+    }
     needsSpace = false;
     result.push(char);
   }

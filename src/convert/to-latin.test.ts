@@ -116,6 +116,26 @@ describe("toLatin", () => {
     }
   );
 
+  it(
+    "inserts space between UCSUR and Latin text",
+    () => {
+      const input = ucsur("toki") + "po";
+      expect(toLatin(input)).toBe("toki po");
+    }
+  );
+
+  it("preserves newlines between UCSUR lines", () => {
+    const input =
+      ucsur("toki") +
+      ucsur("pona") +
+      "\n" +
+      ucsur("mi") +
+      ucsur("moku");
+    expect(toLatin(input)).toBe(
+      "toki pona\nmi moku"
+    );
+  });
+
   it("strips control chars in output", () => {
     const ext = String.fromCodePoint(
       CARTOUCHE_EXTENSION

@@ -39,11 +39,13 @@ describe("App", () => {
   });
 
   it("shows footer attribution", () => {
-    render(<App />);
-    expect(
-      screen.getByText(
-        "nasin nanpa font by ETBCOR"
-      )
-    ).toBeTruthy();
+    const { container } = render(<App />);
+    const footer = container.querySelector(
+      ".app__footer"
+    );
+    expect(footer).toBeTruthy();
+    const link = footer!.querySelector("a");
+    expect(link).toBeTruthy();
+    expect(link!.href).toContain("nasin-nanpa");
   });
 });

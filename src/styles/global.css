@@ -3,7 +3,7 @@
 @import "./selection-menu.css";
 @import "./autocomplete.css";
 @import "./copy-bar.css";
-@import "./help-panel.css";
+
 
 *,
 *::before,
@@ -45,4 +45,27 @@ h1 {
 
 .verbatim-label {
   font-family: system-ui, sans-serif;
+}
+
+.app__footer {
+  font-size: 1.3rem;
+  color: #888;
+  text-align: center;
+  margin-top: 24px;
+}
+
+.app__footer p {
+  margin: 0;
+}
+
+.app__footer a {
+  color: #4a7ab5;
+  text-decoration: none;
+  border-bottom: 1.5px dotted #4a7ab5;
+  padding-bottom: 5px;
+}
+
+.app__footer a:hover {
+  color: #2d5a8e;
+  border-bottom-color: #2d5a8e;
 }

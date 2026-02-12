@@ -3,12 +3,10 @@ import {
   describe,
   it,
   expect,
-  vi,
   afterEach,
 } from "vitest";
 import {
   render,
-  screen,
   fireEvent,
   cleanup,
 } from "@testing-library/react";
@@ -29,45 +27,46 @@ function createEditor(content = "") {
 describe("CopyBar", () => {
   afterEach(cleanup);
 
-  it("renders two copy buttons", () => {
-    const editor = createEditor("<p></p>");
-    render(<CopyBar editor={editor} />);
+  it("renders collapsed by default", () => {
+    const editor = createEditor(
+      "<p>hello</p>"
+    );
+    const { container } = render(
+      <CopyBar editor={editor} />
+    );
     expect(
-      screen.getByText("Copy as Latin")
-    ).toBeTruthy();
-    expect(
-      screen.getByText("Copy as UCSUR")
-    ).toBeTruthy();
+      container.querySelector(
+        ".latin-panel__text"
+      )
+    ).toBeNull();
+    editor.destroy();
+  });
+
+  it("expands on toggle click", () => {
+    const editor = createEditor(
+      "<p>hello</p>"
+    );
+    const { container } = render(
+      <CopyBar editor={editor} />
+    );
+    const toggle = container.querySelector(
+      ".latin-panel__toggle"
+    )!;
+    fireEvent.click(toggle);
+    const text = container.querySelector(
+      ".latin-panel__text"
+    );
+    expect(text).toBeTruthy();
+    expect(text?.textContent).toBe("hello");
     editor.destroy();
   });
 
   it("handles null editor", () => {
-    render(<CopyBar editor={null} />);
+    const { container } = render(
+      <CopyBar editor={null} />
+    );
     expect(
-      screen.getByText("Copy as Latin")
+      container.querySelector(".latin-panel")
     ).toBeTruthy();
-  });
-
-  it("calls clipboard on click", () => {
-    const writeText = vi.fn().mockResolvedValue(
-      undefined
-    );
-    Object.defineProperty(navigator, "clipboard", {
-      value: { writeText },
-      writable: true,
-      configurable: true,
-    });
-
-    const editor = createEditor(
-      "<p>hello</p>"
-    );
-    render(<CopyBar editor={editor} />);
-    fireEvent.click(
-      screen.getByText("Copy as Latin")
-    );
-    expect(writeText).toHaveBeenCalledWith(
-      "hello"
-    );
-    editor.destroy();
   });
 });

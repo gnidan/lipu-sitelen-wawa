@@ -3,7 +3,6 @@ export {
   SelectionMenu,
   AutocompletePopup,
   CopyBar,
-  HelpPanel,
 } from "./components";
 export {
   SitelenPona,
