@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="5.0.0-beta.3"
+VERSION="4.0.2"
 TAG="n${VERSION}"
 BASE_URL="https://github.com/etbcor/nasin-nanpa/releases/download/${TAG}"
 
