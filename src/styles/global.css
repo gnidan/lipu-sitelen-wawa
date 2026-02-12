@@ -25,6 +25,24 @@ body {
 }
 
 h1 {
-  font-size: 1.5rem;
+  font-size: 3rem;
   margin: 0 0 4px;
+}
+
+.app__subtitle {
+  font-size: 1.5rem;
+  margin: 0;
+  color: #888;
+}
+
+.sp-text {
+  font-family: "nasin-nanpa-ucsur", sans-serif;
+  font-feature-settings:
+    "liga" 1, "calt" 1, "ccmp" 1;
+  -webkit-font-variant-ligatures: normal;
+  font-variant-ligatures: normal;
+}
+
+.verbatim-label {
+  font-family: system-ui, sans-serif;
 }

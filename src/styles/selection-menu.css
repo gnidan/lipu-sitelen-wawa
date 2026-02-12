@@ -13,7 +13,8 @@
   padding: 4px 0;
 }
 
-.selection-menu__section + .selection-menu__section {
+.selection-menu__section
+  + .selection-menu__section {
   border-top: 1px solid #e8e8e8;
 }
 
@@ -35,7 +36,9 @@
   border-radius: 6px;
   background: #fafafa;
   cursor: pointer;
-  transition: background 0.1s, border-color 0.1s;
+  transition:
+    background 0.1s,
+    border-color 0.1s;
 }
 
 .variant-option:hover {
@@ -61,86 +64,54 @@
   margin-top: 2px;
 }
 
-/* Action buttons row */
-.selection-menu__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 2px 0;
-}
-
-.selection-menu__action-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  border: 1px solid #d0d0d0;
-  border-radius: 4px;
-  background: #fafafa;
-  cursor: pointer;
-  font-family: system-ui, sans-serif;
-  font-size: 0.8rem;
-  color: #333;
-  transition: background 0.1s, border-color 0.1s;
-  white-space: nowrap;
-}
-
-.selection-menu__action-btn:hover {
-  background: #f0f0ff;
-  border-color: #aaa;
-}
-
-/* Convert preview section */
-.selection-menu__convert {
+/* Action list */
+.selection-menu__action-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 2px 0;
 }
 
-.selection-menu__convert-header {
+.selection-menu__action-item {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.1s;
 }
 
-.selection-menu__convert-preview {
+.selection-menu__action-item:hover,
+.selection-menu__action-item--active {
+  background: #f0f0ff;
+}
+
+.selection-menu__action-label {
+  flex: 1;
   min-width: 0;
+  font-size: 1.2rem;
+  line-height: 1.4;
+}
+
+.selection-menu__action-hint {
+  font-size: 0.7rem;
+  color: #999;
+  flex-shrink: 0;
+  font-family: system-ui, sans-serif;
+}
+
+.selection-menu__action-preview {
+  font-size: 0.8rem;
+  color: #888;
+  white-space: pre;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 0.85rem;
-  color: #555;
+  padding: 0 2px;
+  display: block;
 }
 
-.selection-menu__convert-preview--sp {
+.selection-menu__action-preview--sp {
   font-family: "nasin-nanpa-ucsur", sans-serif;
-  font-size: 1.2rem;
-}
-
-.selection-menu__convert-label {
-  font-family: system-ui, sans-serif;
-  font-size: 0.7rem;
-  color: #888;
-  white-space: nowrap;
-}
-
-.selection-menu__convert-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: 1px solid #d0d0d0;
-  border-radius: 4px;
-  background: #fafafa;
-  cursor: pointer;
-  font-size: 0.9rem;
-  color: #333;
-  flex-shrink: 0;
-  transition: background 0.1s, border-color 0.1s;
-}
-
-.selection-menu__convert-btn:hover {
-  background: #f0f0ff;
-  border-color: #aaa;
+  font-feature-settings:
+    "liga" 1, "calt" 1, "ccmp" 1;
+  font-size: 1rem;
 }

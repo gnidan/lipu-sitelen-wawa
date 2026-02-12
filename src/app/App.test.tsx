@@ -23,9 +23,11 @@ describe("App", () => {
   });
 
   it("shows title", () => {
-    render(<App />);
+    const { container } = render(<App />);
+    const h1 = container.querySelector("h1");
+    expect(h1).toBeTruthy();
     expect(
-      screen.getByText("lipu sitelen wawa")
+      h1!.querySelector(".sp-text")
     ).toBeTruthy();
   });
 

@@ -92,10 +92,10 @@ export function Editor() {
           "o sitelen... type words, "
           + "Space to commit",
       }),
+      SelectionMenuExtension,
       Autocomplete,
       StructuralChars,
       VariantKeymap,
-      SelectionMenuExtension,
       PasteHandler,
       Verbatim,
       TextNodeNormalizer,
