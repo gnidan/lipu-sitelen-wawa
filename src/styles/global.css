@@ -3,6 +3,7 @@
 @import "./selection-menu.css";
 @import "./autocomplete.css";
 @import "./copy-bar.css";
+@import "./help.css";
 
 
 *,
@@ -36,7 +37,7 @@ h1 {
 }
 
 .sp-text {
-  font-family: "nasin-nanpa-ucsur", sans-serif;
+  font-family: "nasin-nanpa-ucsur", "nasin-nanpa", sans-serif;
   font-feature-settings:
     "liga" 1, "calt" 1, "ccmp" 1;
   -webkit-font-variant-ligatures: normal;

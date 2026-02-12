@@ -1,4 +1,9 @@
-import React, { useRef, useMemo } from "react";
+import React, {
+  useRef,
+  useMemo,
+  useState,
+  useCallback,
+} from "react";
 import {
   useEditor,
   EditorContent,
@@ -13,6 +18,10 @@ import {
 } from "../extensions/sitelen-pona";
 import {
   Autocomplete,
+  autocompletePluginKey,
+} from "../extensions/autocomplete";
+import type {
+  AutocompleteState,
 } from "../extensions/autocomplete";
 import {
   StructuralChars,
@@ -28,12 +37,18 @@ import {
 } from "../extensions/verbatim";
 import {
   createSelectionMenuPlugin,
+  selectionMenuPluginKey,
   SelectionMenu,
+} from "./SelectionMenu";
+import type {
+  SelectionMenuPluginState,
 } from "./SelectionMenu";
 import {
   AutocompletePopup,
 } from "./AutocompletePopup";
 import { CopyBar } from "./CopyBar";
+import { HelpButton } from "./HelpButton";
+import { HelpPanel } from "./HelpPanel";
 
 
 const SelectionMenuExtension = Extension.create({
@@ -68,9 +83,12 @@ const TextNodeNormalizer = Extension.create({
 
 const STORAGE_KEY = "lipu-sitelen-wawa:doc";
 
-function loadSavedContent(): JSONContent | undefined {
+function loadSavedContent():
+  JSONContent | undefined
+{
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw =
+      localStorage.getItem(STORAGE_KEY);
     if (raw) {
       return JSON.parse(raw) as JSONContent;
     }
@@ -80,8 +98,64 @@ function loadSavedContent(): JSONContent | undefined {
 }
 
 export function Editor() {
-  const savedContent = useMemo(loadSavedContent, []);
-  const saveTimer = useRef<ReturnType<typeof setTimeout>>();
+  const savedContent =
+    useMemo(loadSavedContent, []);
+  const saveTimer =
+    useRef<ReturnType<typeof setTimeout>>();
+  const [helpOpen, setHelpOpen] = useState(false);
+  const helpToggleRef =
+    useRef<(() => void) | null>(null);
+
+  const toggleHelp = useCallback(() => {
+    setHelpOpen((prev) => !prev);
+  }, []);
+  helpToggleRef.current = toggleHelp;
+
+  const HelpKeyExtension = useMemo(() => {
+    const ref = helpToggleRef;
+    return Extension.create({
+      name: "helpKey",
+      addProseMirrorPlugins() {
+        return [
+          new Plugin({
+            props: {
+              handleKeyDown(view, event) {
+                if (event.key !== "?") {
+                  return false;
+                }
+
+                const acState =
+                  autocompletePluginKey.getState(
+                    view.state
+                  ) as
+                    | AutocompleteState
+                    | undefined;
+                if (
+                  acState &&
+                  acState.matches.length > 0
+                ) {
+                  return false;
+                }
+
+                const smState =
+                  selectionMenuPluginKey.getState(
+                    view.state
+                  ) as
+                    | SelectionMenuPluginState
+                    | undefined;
+                if (smState?.analysis) {
+                  return false;
+                }
+
+                ref.current?.();
+                return true;
+              },
+            },
+          }),
+        ];
+      },
+    });
+  }, []);
 
   const editor = useEditor({
     content: savedContent,
@@ -115,7 +189,7 @@ export function Editor() {
       }),
       SitelenPona,
       Placeholder.configure({
-        placeholder: "󱥄󱥠"
+        placeholder: "\u{F1944}\u{F1960}"
       }),
       SelectionMenuExtension,
       Autocomplete,
@@ -124,21 +198,35 @@ export function Editor() {
       PasteHandler,
       Verbatim,
       TextNodeNormalizer,
+      HelpKeyExtension,
     ],
   });
 
   return (
-    <div className="editor-wrapper">
-      <div className="editor-content-wrapper">
-        <EditorContent editor={editor} />
-        {editor && (
-          <>
-            <SelectionMenu editor={editor} />
-            <AutocompletePopup editor={editor} />
-          </>
-        )}
+    <div className="editor-outer">
+      <div className="editor-toolbar">
+        <HelpButton
+          active={helpOpen}
+          onToggle={toggleHelp}
+        />
+        {helpOpen && <HelpPanel />}
       </div>
-      <CopyBar editor={editor} />
+      <div className="editor-wrapper">
+        <div className="editor-content-wrapper">
+          <EditorContent editor={editor} />
+          {editor && (
+            <>
+              <SelectionMenu
+                editor={editor}
+              />
+              <AutocompletePopup
+                editor={editor}
+              />
+            </>
+          )}
+        </div>
+        <CopyBar editor={editor} />
+      </div>
     </div>
   );
 }

@@ -1975,162 +1975,216 @@ function renderActionLabel(
   const preview = analysis.verbatimPreview;
   const cls = "selection-menu__action-label";
 
+  // Convert actions keep their own layout
+  if (actionId === "convertToVerbatim") {
+    return (
+      <span className={cls}>
+        <SP>sitelen+pona ala</SP>
+        {analysis.verbatimPreview && (
+          <span
+            className={
+              "selection-menu"
+              + "__action-preview"
+            }
+          >
+            {truncatePreview(
+              analysis.verbatimPreview
+            )}
+          </span>
+        )}
+      </span>
+    );
+  }
+  if (actionId === "convertToSP") {
+    return (
+      <span className={cls}>
+        <SP>sitelen+pona</SP>
+        {analysis.sitelenPonaPreview && (
+          <span
+            className={
+              "selection-menu"
+              + "__action-preview"
+              + " selection-menu"
+              + "__action-preview--sp"
+            }
+          >
+            {truncatePreview(
+              analysis.sitelenPonaPreview
+            )}
+          </span>
+        )}
+      </span>
+    );
+  }
+
+  // Compute "after" content for structural ops
+  let afterNode: React.ReactNode;
   switch (actionId) {
     case "wrapCartouche":
       if (singleLine && preview) {
-        return (
-          <span className={cls}>
-            <SP>{`[${preview}]`}</SP>
-          </span>
+        afterNode = (
+          <SP>{`[${preview}]`}</SP>
+        );
+      } else {
+        afterNode = (
+          <>
+            <SP>[</SP>{"..."}<SP>]</SP>
+          </>
         );
       }
-      return (
-        <span className={cls}>
-          <SP>[</SP>
-          {"..."}
-          <SP>]</SP>
-        </span>
-      );
+      break;
     case "unwrapCartouche": {
       const cp =
         analysis.cartoucheContentPreview;
       if (cp) {
         const stripped =
           stripCartoucheMarkers(cp);
-        return (
-          <span className={cls}>
-            <SP>{stripped}</SP>
-          </span>
-        );
+        afterNode = <SP>{stripped}</SP>;
+      } else {
+        afterNode = <>{"..."}</>;
       }
-      return (
-        <span className={cls}>
-          {"..."}
-        </span>
-      );
+      break;
     }
-    case "wrapLongGlyph": {
+    case "wrapLongGlyph":
       if (singleLine && preview) {
         if (analysis.precedingLongGlyph) {
           const c =
             analysis.precedingLongGlyph.word;
-          return (
-            <span className={cls}>
-              <SP>{`${c}(${preview})`}</SP>
-            </span>
+          afterNode = (
+            <SP>{`${c}(${preview})`}</SP>
           );
-        }
-        if (!analysis.adjacentLongGlyph) {
-          // First glyph is container; split
-          // preview at first space
+        } else if (
+          !analysis.adjacentLongGlyph
+        ) {
           const idx = preview.indexOf(" ");
           if (idx >= 0) {
             const c = preview.slice(0, idx);
-            const rest = preview.slice(idx + 1);
-            return (
-              <span className={cls}>
-                <SP>{`${c}(${rest})`}</SP>
-              </span>
+            const rest =
+              preview.slice(idx + 1);
+            afterNode = (
+              <SP>{`${c}(${rest})`}</SP>
+            );
+          } else {
+            afterNode = (
+              <>
+                <SP>{`${first}(`}</SP>
+                {"..."}
+                <SP>)</SP>
+              </>
             );
           }
+        } else {
+          afterNode = (
+            <>
+              <SP>{`${first}(`}</SP>
+              {"..."}
+              <SP>)</SP>
+            </>
+          );
         }
+      } else {
+        afterNode = (
+          <>
+            <SP>{`${first}(`}</SP>
+            {"..."}
+            <SP>)</SP>
+          </>
+        );
       }
-      return (
-        <span className={cls}>
-          <SP>{`${first}(`}</SP>
-          {"..."}
-          <SP>)</SP>
-        </span>
-      );
-    }
+      break;
     case "unwrapLongGlyph": {
       const container =
-        analysis.longGlyphContainerWord ?? first;
+        analysis.longGlyphContainerWord
+        ?? first;
       if (singleLine && preview) {
         const content =
           stripLongGlyphMarkers(preview);
-        // If container word appears as the first
-        // word in content (selected kind includes
-        // the container), don't duplicate it
         const words = content.split(" ");
         const inner =
           words[0] === container
             ? words.slice(1).join(" ")
             : content;
-        return (
-          <span className={cls}>
-            <SP>{`${container} ${inner}`}</SP>
-          </span>
+        afterNode = (
+          <SP>{`${container} ${inner}`}</SP>
+        );
+      } else {
+        afterNode = (
+          <>
+            <SP>{`${container}`}</SP>
+            {" ..."}
+          </>
         );
       }
-      return (
-        <span className={cls}>
-          <SP>{`${container}`}</SP>
-          {" ..."}
-        </span>
-      );
+      break;
     }
     case "stack":
-      return (
-        <span className={cls}>
-          <SP>{`${first}-${second}`}</SP>
-        </span>
+      afterNode = (
+        <SP>{`${first}-${second}`}</SP>
       );
+      break;
     case "scale":
-      return (
-        <span className={cls}>
-          <SP>{`${first}+${second}`}</SP>
-        </span>
+      afterNode = (
+        <SP>{`${first}+${second}`}</SP>
       );
+      break;
     case "unstack":
-      return (
-        <span className={cls}>
-          <SP>{`${first} ${second}`}</SP>
-        </span>
-      );
     case "unscale":
-      return (
-        <span className={cls}>
-          <SP>{`${first} ${second}`}</SP>
-        </span>
+      afterNode = (
+        <SP>{`${first} ${second}`}</SP>
       );
-    case "convertToVerbatim":
-      return (
-        <span className={cls}>
-          <SP>sitelen+pona ala</SP>
-          {analysis.verbatimPreview && (
-            <span
-              className={
-                "selection-menu__action-preview"
-              }
-            >
-              {truncatePreview(
-                analysis.verbatimPreview
-              )}
-            </span>
-          )}
-        </span>
-      );
-    case "convertToSP":
-      return (
-        <span className={cls}>
-          <SP>sitelen+pona</SP>
-          {analysis.sitelenPonaPreview && (
-            <span
-              className={
-                "selection-menu__action-preview"
-                + " selection-menu"
-                + "__action-preview--sp"
-              }
-            >
-              {truncatePreview(
-                analysis.sitelenPonaPreview
-              )}
-            </span>
-          )}
-        </span>
-      );
+      break;
   }
+
+  // Show before→after for structural ops when
+  // single-line preview is available
+  if (singleLine && preview) {
+    // Determine the before verbatim string
+    let beforeStr = preview;
+    if (
+      actionId === "unwrapCartouche" &&
+      analysis.cartoucheContentPreview
+    ) {
+      beforeStr =
+        analysis.cartoucheContentPreview;
+    } else if (
+      actionId === "unwrapLongGlyph" &&
+      analysis.longGlyphContainerWord &&
+      analysis.insideLongGlyph?.kind
+        === "surrounding"
+    ) {
+      const c =
+        analysis.longGlyphContainerWord;
+      beforeStr = `${c}(${preview})`;
+    }
+
+    return (
+      <span className={cls}>
+        <span
+          className={
+            "selection-menu"
+            + "__action-before"
+          }
+        >
+          <SP>{beforeStr}</SP>
+        </span>
+        <span
+          className={
+            "selection-menu"
+            + "__action-arrow"
+          }
+        >
+          {"\u2192"}
+        </span>
+        {afterNode}
+      </span>
+    );
+  }
+
+  return (
+    <span className={cls}>
+      {afterNode}
+    </span>
+  );
 }
 
 export function SelectionMenu({
@@ -2501,8 +2555,14 @@ export function SelectionMenu({
                       + "__action-hint"
                     }
                   >
-                    {ACTION_HINTS[actionId]}
-                    {active ? " \u21B5" : ""}
+                    <kbd className="keycap">
+                      {ACTION_HINTS[actionId]}
+                    </kbd>
+                    {active && (
+                      <kbd className="keycap">
+                        {"\u21B5"}
+                      </kbd>
+                    )}
                   </span>
                 </div>
               );

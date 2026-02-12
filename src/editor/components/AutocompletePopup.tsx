@@ -256,7 +256,16 @@ export function AutocompletePopup({
             handleItemClick(entry.word);
           }}
         >
-          <span className="autocomplete-item__glyph">
+          <span className={
+            "autocomplete-item__glyph"
+            + (hasVariations(entry.word)
+              ? entry.word === "ni"
+                ? " autocomplete-item"
+                  + "__glyph--ni-variants"
+                : " autocomplete-item"
+                  + "__glyph--has-variants"
+              : "")
+          }>
             {entry.word === "ni" &&
             niDirBuf !== null &&
             niDirBuf.length > 0
@@ -272,14 +281,57 @@ export function AutocompletePopup({
             </span>
           </span>
           {i === state.activeIndex && (
-            <span className="autocomplete-item__hint">
+            <span
+              className={
+                "autocomplete-item__hint"
+              }
+            >
               {activeWord === "ni"
                 ? niDirBuf !== null
-                  ? "\u2423 commit"
-                  : "\u2423 or &"
+                  ? (
+                    <>
+                      <kbd className="keycap">
+                        {"\u2423"}
+                      </kbd>
+                      <kbd className="keycap">
+                        {"\u21B5"}
+                      </kbd>
+                    </>
+                  )
+                  : (
+                    <>
+                      <kbd className="keycap">
+                        {"\u2423"}
+                      </kbd>
+                      <kbd className="keycap">
+                        &
+                      </kbd>
+                    </>
+                  )
                 : activeHasVariants
-                  ? "\u2423 or 1\u20138"
-                  : "\u2423"}
+                  ? (
+                    <>
+                      <kbd className="keycap">
+                        {"\u2423"}
+                      </kbd>
+                      <kbd className="keycap">
+                        1
+                      </kbd>
+                      <span
+                        className="keycap-range"
+                      >
+                        {"\u2026"}
+                      </span>
+                      <kbd className="keycap">
+                        8
+                      </kbd>
+                    </>
+                  )
+                  : (
+                    <kbd className="keycap">
+                      {"\u2423"}
+                    </kbd>
+                  )}
             </span>
           )}
         </div>
