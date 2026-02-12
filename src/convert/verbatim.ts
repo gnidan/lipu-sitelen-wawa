@@ -7,6 +7,10 @@ import {
   asciiToUcsurControl,
   ucsurControlToAscii,
   isVariationSelector,
+  ZWJ,
+  isNiArrowCp,
+  niDirectionByArrowCp,
+  parseVerbatimDirection,
 } from "../data";
 
 /**
@@ -57,8 +61,11 @@ export function isLatinLetter(cp: number): boolean {
 export function toVerbatim(text: string): string {
   const result: string[] = [];
   let needsSpace = false;
+  const cps = [...codepoints(text)];
 
-  for (const [cp] of codepoints(text)) {
+  for (let i = 0; i < cps.length; i++) {
+    const [cp] = cps[i];
+
     if (isVariationSelector(cp)) continue;
 
     const ascii = ucsurControlToAscii(cp);
@@ -74,9 +81,26 @@ export function toVerbatim(text: string): string {
         if (needsSpace) result.push(" ");
         result.push(word);
         needsSpace = true;
+
+        // For "ni", check for ZWJ + arrow
+        if (word === "ni" && i + 1 < cps.length) {
+          const [nextCp] = cps[i + 1];
+          if (nextCp === ZWJ && i + 2 < cps.length) {
+            const [arrowCp] = cps[i + 2];
+            const dir =
+              niDirectionByArrowCp(arrowCp);
+            if (dir) {
+              result.push("&" + dir.verbatim);
+              i += 2; // skip ZWJ + arrow
+            }
+          }
+        }
         continue;
       }
     }
+
+    // For non-ni glyphs, skip standalone ZWJ
+    if (cp === ZWJ) continue;
 
     needsSpace = false;
     result.push(String.fromCodePoint(cp));
@@ -98,11 +122,12 @@ export function fromVerbatim(text: string): string {
     value: string;
   }> = [];
   let wordBuf = "";
+  let i = 0;
 
   const flush = () => {
     if (!wordBuf) return;
-    const cp =
-      wordToCodepoint[wordBuf.toLowerCase()];
+    const word = wordBuf.toLowerCase();
+    const cp = wordToCodepoint[word];
     if (cp !== undefined) {
       tokens.push({
         ucsur: true,
@@ -117,7 +142,10 @@ export function fromVerbatim(text: string): string {
     wordBuf = "";
   };
 
-  for (const ch of text) {
+  while (i < text.length) {
+    const ch = text[i];
+    i++;
+
     const ctrl = asciiToUcsurControl(ch);
     if (ctrl !== undefined) {
       flush();
@@ -129,6 +157,32 @@ export function fromVerbatim(text: string): string {
     if (isLatinLetter(cp)) {
       wordBuf += ch;
       continue;
+    }
+
+    // & after "ni" → ZWJ + arrow direction
+    if (
+      ch === "&" &&
+      wordBuf.toLowerCase() === "ni"
+    ) {
+      const parsed = parseVerbatimDirection(
+        text, i
+      );
+      if (parsed) {
+        const niCp =
+          wordToCodepoint[
+            wordBuf.toLowerCase()
+          ]!;
+        tokens.push({
+          ucsur: true,
+          value:
+            codepointToChar(niCp) +
+            String.fromCodePoint(ZWJ) +
+            parsed.dir.arrow,
+        });
+        wordBuf = "";
+        i += parsed.length;
+        continue;
+      }
     }
 
     flush();

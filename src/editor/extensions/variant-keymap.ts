@@ -4,6 +4,10 @@ import {
   wordToCodepoint,
   codepointToWord,
   isUcsurChar,
+  ZWJ,
+  isNiArrowCp,
+  niDirectionByIndex,
+  niZwjString,
 } from "../../data";
 import {
   isVariationSelector,
@@ -46,8 +50,24 @@ function ucsurCharBeforeCursor(
   // Parse backward from end of text
   let endIdx = text.length;
 
+  // Check if trailing char is a Unicode arrow
+  // preceded by ZWJ (ni ZWJ encoding)
+  let hasZwjArrow = false;
+  {
+    const lastCp = text.codePointAt(endIdx - 1);
+    if (
+      lastCp !== undefined &&
+      isNiArrowCp(lastCp) &&
+      endIdx >= 2 &&
+      text.codePointAt(endIdx - 2) === ZWJ
+    ) {
+      endIdx -= 2; // skip arrow + ZWJ
+      hasZwjArrow = true;
+    }
+  }
+
   // Check if last char is a variation selector
-  if (endIdx > 0) {
+  if (!hasZwjArrow && endIdx > 0) {
     const lastCp = text.codePointAt(endIdx - 1);
     if (
       lastCp !== undefined &&
@@ -115,11 +135,26 @@ function makeVariantHandler(
     const baseCp = wordToCodepoint[before.word];
     if (baseCp === undefined) return false;
 
-    let newText = String.fromCodePoint(baseCp);
-    if (variation !== null && variation > 0) {
-      newText += String.fromCodePoint(
-        VARIATION_SELECTOR_BASE + (variation - 1)
-      );
+    let newText: string;
+    if (
+      before.word === "ni" &&
+      variation !== null &&
+      variation > 0
+    ) {
+      const dir = niDirectionByIndex(variation);
+      if (dir) {
+        newText = niZwjString(baseCp, dir);
+      } else {
+        newText = String.fromCodePoint(baseCp);
+      }
+    } else {
+      newText = String.fromCodePoint(baseCp);
+      if (variation !== null && variation > 0) {
+        newText += String.fromCodePoint(
+          VARIATION_SELECTOR_BASE +
+            (variation - 1)
+        );
+      }
     }
 
     const { state } = editor.view;

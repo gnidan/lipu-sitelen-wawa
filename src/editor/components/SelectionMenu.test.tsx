@@ -139,9 +139,10 @@ describe("SelectionMenu", () => {
       const buttons = container.querySelectorAll(
         ".variant-option"
       );
-      // +1 for the default option
+      // "ni" has no default option (variant 4 is
+      // the default glyph), so count = variations
       expect(buttons.length).toBe(
-        variations.length + 1
+        variations.length
       );
       editor.destroy();
     }
@@ -193,7 +194,7 @@ describe("SelectionMenu", () => {
 
   it("shows default option with key 0", () => {
     const editor = createEditor("<p></p>");
-    editor.commands.insertSitelenPona("ni");
+    editor.commands.insertSitelenPona("jaki");
     mockCoordsAtPos(editor);
 
     const { container } = render(
@@ -205,7 +206,13 @@ describe("SelectionMenu", () => {
     act(() => {
       const tr = editor.state.tr.setMeta(
         selectionMenuPluginKey,
-        mockAnalysis()
+        mockAnalysis({
+          singleGlyphWithVariants: {
+            word: "jaki",
+          },
+          firstGlyphWord: "jaki",
+          verbatimPreview: "jaki",
+        })
       );
       editor.view.dispatch(tr);
     });

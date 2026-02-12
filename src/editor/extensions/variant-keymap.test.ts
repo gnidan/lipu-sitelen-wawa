@@ -7,6 +7,8 @@ import { Autocomplete } from "./autocomplete";
 import {
   codepointToChar,
   applyVariation,
+  niZwjString,
+  niDirectionByIndex,
 } from "../../data";
 
 function createEditor(content = "") {
@@ -45,11 +47,11 @@ describe("VariantKeymap", () => {
       )["3"]({ editor });
       expect(result).toBe(true);
 
-      // Check that text now has ni + VS3
+      // Check that text now has ni + ZWJ + → arrow
       const text =
         editor.state.doc.textContent;
-      const niChar = codepointToChar(0xF1941);
-      const expected = applyVariation(niChar, 3);
+      const dir = niDirectionByIndex(3)!;
+      const expected = niZwjString(0xF1941, dir);
       expect(text).toBe(expected);
       editor.destroy();
     }

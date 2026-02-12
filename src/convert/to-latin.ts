@@ -5,6 +5,8 @@ import {
   START_OF_CARTOUCHE,
   END_OF_CARTOUCHE,
   VARIATION_SELECTOR_BASE,
+  ZWJ,
+  isNiArrowCp,
 } from "../data";
 
 const VARIATION_SELECTOR_END =
@@ -36,12 +38,23 @@ export function toLatin(input: string): string {
   let needsSpace = false;
   let inCartouche = false;
   let cartoucheFirst = false;
+  let skipNextDirectionChars = false;
 
   for (const char of input) {
     const cp = char.codePointAt(0)!;
 
     if (isVariationSelector(cp)) {
       continue;
+    }
+
+    if (cp === ZWJ) {
+      skipNextDirectionChars = true;
+      continue;
+    }
+
+    if (skipNextDirectionChars) {
+      if (isNiArrowCp(cp)) continue;
+      skipNextDirectionChars = false;
     }
 
     if (cp === START_OF_CARTOUCHE) {

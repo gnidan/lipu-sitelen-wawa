@@ -47,3 +47,17 @@ export {
   wordByFirstLetter,
 } from "./words";
 export type { WordEntry, WordCategory } from "./words";
+
+export {
+  ZWJ,
+  isNiArrowCp,
+  NI_DIRECTIONS,
+  niDirectionByVerbatim,
+  niDirectionByArrowCp,
+  niDirectionByIndex,
+  niZwjString,
+  parseVerbatimDirection,
+} from "./ni-directions";
+export type {
+  NiDirection,
+} from "./ni-directions";

@@ -28,6 +28,11 @@ import {
   END_OF_LONG_GLYPH,
   STACKING_JOINER,
   SCALING_JOINER,
+  ZWJ,
+  isNiArrowCp,
+  niDirectionByIndex,
+  niZwjString,
+  parseVerbatimDirection,
 } from "../../data";
 import {
   VARIATION_SELECTOR_BASE,
@@ -383,6 +388,30 @@ function isConnectorCp(cp: number): boolean {
 }
 
 /**
+ * Skip backward past glyph modifiers (VS or
+ * ZWJ+arrow) in a codepoint array. Returns the
+ * adjusted index pointing at the base glyph, or
+ * the original index if no modifiers found.
+ */
+function skipGlyphModsBackward(
+  cps: [number, number][],
+  k: number
+): number {
+  if (k < 0) return k;
+  if (isVariationSelector(cps[k][0])) {
+    return k - 1;
+  }
+  if (
+    isNiArrowCp(cps[k][0]) &&
+    k >= 1 &&
+    cps[k - 1][0] === ZWJ
+  ) {
+    return k - 2;
+  }
+  return k;
+}
+
+/**
  * Expands a selection range to include glyphs
  * connected via CART_EXT or joiners at the
  * boundaries. E.g. if the selection starts at a
@@ -429,7 +458,28 @@ function expandSelectionRange(
     moved = false;
     const [cp] = cps[si];
     const prevCp = cps[si - 1][0];
-    if (
+
+    // Arrow codepoint preceded by ZWJ: expand
+    // backward past ZWJ to include the ni glyph
+    if (isNiArrowCp(cp) && prevCp === ZWJ) {
+      let i = si - 1; // at ZWJ
+      if (i >= 0 && cps[i][0] === ZWJ) i--;
+      if (i >= 0 && isWordGlyph(cps[i][0])) {
+        si = i;
+        moved = true;
+      }
+    } else if (
+      cp === ZWJ &&
+      si + 1 < cps.length &&
+      isNiArrowCp(cps[si + 1][0])
+    ) {
+      // ZWJ part of ni direction sequence
+      let i = si - 1;
+      if (i >= 0 && isWordGlyph(cps[i][0])) {
+        si = i;
+        moved = true;
+      }
+    } else if (
       isConnectorCp(cp) ||
       isVariationSelector(cp) ||
       isConnectorCp(prevCp)
@@ -461,6 +511,23 @@ function expandSelectionRange(
     const lastCp =
       ei > 0 ? cps[ei - 1][0] : 0;
     if (isVariationSelector(cp)) {
+      ei++;
+      moved = true;
+    } else if (cp === ZWJ) {
+      ei++; // skip ZWJ
+      // Also skip following arrow codepoint
+      if (
+        ei < cps.length &&
+        isNiArrowCp(cps[ei][0])
+      ) {
+        ei++;
+      }
+      moved = true;
+    } else if (
+      isNiArrowCp(cp) &&
+      ei > 0 && lastCp === ZWJ
+    ) {
+      // Arrow after ZWJ (selection split mid-seq)
       ei++;
       moved = true;
     } else if (
@@ -537,13 +604,9 @@ function expandSelectionRange(
               startCp === START_OF_LONG_GLYPH &&
               si > 0
             ) {
-              let k = si - 1;
-              while (
-                k >= 0 &&
-                isVariationSelector(cps[k][0])
-              ) {
-                k--;
-              }
+              let k = skipGlyphModsBackward(
+                cps, si - 1
+              );
               if (
                 k >= 0 &&
                 isWordGlyph(cps[k][0])
@@ -591,13 +654,9 @@ function expandSelectionRange(
       si > 0 &&
       cps[si][0] === START_OF_LONG_GLYPH
     ) {
-      let k = si - 1;
-      while (
-        k >= 0 &&
-        isVariationSelector(cps[k][0])
-      ) {
-        k--;
-      }
+      let k = skipGlyphModsBackward(
+        cps, si - 1
+      );
       if (k >= 0 && isWordGlyph(cps[k][0])) {
         si = k;
       }
@@ -638,8 +697,7 @@ function analyzeSelection(
     word: string;
   } | null = null;
   {
-    let idx = 0;
-    const cp = text.codePointAt(idx);
+    const cp = text.codePointAt(0);
     if (
       cp !== undefined &&
       isUcsurChar(String.fromCodePoint(cp))
@@ -653,6 +711,18 @@ function analyzeSelection(
           isVariationSelector(nextCp)
         ) {
           end += 1;
+        } else if (nextCp === ZWJ) {
+          end += 1; // ZWJ is BMP, 1 char unit
+          // Check for arrow codepoint
+          if (end < text.length) {
+            const arrCp = text.codePointAt(end);
+            if (
+              arrCp !== undefined &&
+              isNiArrowCp(arrCp)
+            ) {
+              end += 1; // arrows are BMP
+            }
+          }
         }
       }
       if (end === text.length) {
@@ -753,14 +823,10 @@ function analyzeSelection(
     }
 
     // Check glyph immediately before selection
-    // (skip trailing VS to reach the glyph)
-    let idx = cpsBefore.length - 1;
-    if (
-      idx >= 0 &&
-      isVariationSelector(cpsBefore[idx][0])
-    ) {
-      idx--;
-    }
+    // (skip trailing VS or ZWJ+arrow)
+    let idx = skipGlyphModsBackward(
+      cpsBefore, cpsBefore.length - 1
+    );
     if (idx >= 0) {
       const [cp, off] = cpsBefore[idx];
       if (isWordGlyph(cp)) {
@@ -938,18 +1004,12 @@ function analyzeSelection(
         const before =
           bt.substring(0, lwf - bs);
         const cps = [...codepoints(before)];
-        for (
-          let i = cps.length - 1;
-          i >= 0;
-          i--
-        ) {
-          const [c] = cps[i];
-          if (isVariationSelector(c)) continue;
-          if (isWordGlyph(c)) {
-            longGlyphContainerWord =
-              codepointToWord[c] ?? null;
-          }
-          break;
+        const ki = skipGlyphModsBackward(
+          cps, cps.length - 1
+        );
+        if (ki >= 0 && isWordGlyph(cps[ki][0])) {
+          longGlyphContainerWord =
+            codepointToWord[cps[ki][0]] ?? null;
         }
       }
     }
@@ -1263,12 +1323,25 @@ export function createSelectionMenuPlugin() {
             const cp = wordToCodepoint[word];
             if (cp === undefined) return false;
 
-            let newText = codepointToChar(cp);
-            if (digit > 0) {
-              newText += String.fromCodePoint(
-                VARIATION_SELECTOR_BASE +
-                  (digit - 1)
-              );
+            let newText: string;
+            if (
+              word === "ni" && digit > 0
+            ) {
+              const dir =
+                niDirectionByIndex(digit);
+              if (dir) {
+                newText = niZwjString(cp, dir);
+              } else {
+                newText = codepointToChar(cp);
+              }
+            } else {
+              newText = codepointToChar(cp);
+              if (digit > 0) {
+                newText += String.fromCodePoint(
+                  VARIATION_SELECTOR_BASE +
+                    (digit - 1)
+                );
+              }
             }
 
             const tr = view.state.tr.insertText(
@@ -1419,7 +1492,11 @@ function wrapInCartouche(
   const inner: string[] = [];
   let hasContent = false;
   for (const [cp] of codepoints(text)) {
-    if (isVariationSelector(cp)) {
+    if (
+      isVariationSelector(cp) ||
+      cp === ZWJ ||
+      isNiArrowCp(cp)
+    ) {
       inner.push(String.fromCodePoint(cp));
       continue;
     }
@@ -1532,11 +1609,17 @@ function wrapInLongGlyph(
     const [cp, off] = cpList[i];
     if (!isWordGlyph(cp)) continue;
     containerEnd = off + (cp > 0xffff ? 2 : 1);
-    // include trailing variation selector
+    // include trailing VS or ZWJ+arrow
     if (i + 1 < cpList.length) {
       const [nextCp] = cpList[i + 1];
       if (isVariationSelector(nextCp)) {
         containerEnd += 1;
+      } else if (
+        nextCp === ZWJ &&
+        i + 2 < cpList.length &&
+        isNiArrowCp(cpList[i + 2][0])
+      ) {
+        containerEnd += 2; // ZWJ + arrow
       }
     }
     break;
@@ -1589,6 +1672,17 @@ function joinWithJoiner(
       if (isVariationSelector(nextCp)) {
         glyph += String.fromCodePoint(nextCp);
         i++;
+      } else if (
+        nextCp === ZWJ &&
+        i + 2 < cpIter.length &&
+        isNiArrowCp(cpIter[i + 2][0])
+      ) {
+        glyph +=
+          String.fromCodePoint(ZWJ) +
+          String.fromCodePoint(
+            cpIter[i + 2][0]
+          );
+        i += 2;
       }
     }
     glyphs.push(glyph);
@@ -1834,6 +1928,10 @@ function glyphChar(
   if (cp === undefined) return "";
   const base = codepointToChar(cp);
   if (variation && variation > 0) {
+    if (word === "ni") {
+      const dir = niDirectionByIndex(variation);
+      if (dir) return niZwjString(cp, dir);
+    }
     return applyVariation(base, variation);
   }
   return base;
@@ -2194,12 +2292,23 @@ export function SelectionMenu({
       const cp = wordToCodepoint[word];
       if (cp === undefined) return;
 
-      let newText = codepointToChar(cp);
-      if (variation > 0) {
-        newText += String.fromCodePoint(
-          VARIATION_SELECTOR_BASE +
-            (variation - 1)
-        );
+      let newText: string;
+      if (word === "ni" && variation > 0) {
+        const dir =
+          niDirectionByIndex(variation);
+        if (dir) {
+          newText = niZwjString(cp, dir);
+        } else {
+          newText = codepointToChar(cp);
+        }
+      } else {
+        newText = codepointToChar(cp);
+        if (variation > 0) {
+          newText += String.fromCodePoint(
+            VARIATION_SELECTOR_BASE +
+              (variation - 1)
+          );
+        }
       }
 
       const tr = editor.state.tr.insertText(
@@ -2274,37 +2383,15 @@ export function SelectionMenu({
       {showVariants && (
         <div className="selection-menu__section">
           <div className="variant-grid">
-            <button
-              className="variant-option"
-              onMouseDown={preventBlur}
-              onClick={() =>
-                handleVariantSelect(0)
-              }
-              title="Default"
-              type="button"
-            >
-              <span
-                className="selection-menu__glyph"
-              >
-                {glyphChar(
-                  singleGlyphWithVariants!.word
-                )}
-              </span>
-              <span className="variant-label">
-                0
-              </span>
-            </button>
-            {getVariations(
-              singleGlyphWithVariants!.word
-            ).map((v) => (
+            {singleGlyphWithVariants!.word
+              !== "ni" && (
               <button
-                key={v.index}
                 className="variant-option"
                 onMouseDown={preventBlur}
                 onClick={() =>
-                  handleVariantSelect(v.index)
+                  handleVariantSelect(0)
                 }
-                title={v.description}
+                title="Default"
                 type="button"
               >
                 <span
@@ -2313,15 +2400,50 @@ export function SelectionMenu({
                   }
                 >
                   {glyphChar(
-                    singleGlyphWithVariants!.word,
-                    v.index
+                    singleGlyphWithVariants!.word
                   )}
                 </span>
                 <span className="variant-label">
-                  {v.index}
+                  0
                 </span>
               </button>
-            ))}
+            )}
+            {getVariations(
+              singleGlyphWithVariants!.word
+            ).map((v) => {
+              const niDir =
+                singleGlyphWithVariants!.word
+                  === "ni"
+                  ? niDirectionByIndex(v.index)
+                  : null;
+              return (
+                <button
+                  key={v.index}
+                  className="variant-option"
+                  onMouseDown={preventBlur}
+                  onClick={() =>
+                    handleVariantSelect(v.index)
+                  }
+                  title={v.description}
+                  type="button"
+                >
+                  <span
+                    className={
+                      "selection-menu__glyph"
+                    }
+                  >
+                    {glyphChar(
+                      singleGlyphWithVariants!
+                        .word,
+                      v.index
+                    )}
+                  </span>
+                  <span className="variant-label">
+                    {niDir ? niDir.arrow : v.index}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

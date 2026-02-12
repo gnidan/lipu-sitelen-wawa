@@ -55,6 +55,8 @@
   font-family: "nasin-nanpa-ucsur", sans-serif;
   font-size: 1.8rem;
   line-height: 1;
+  font-feature-settings: "liga" 1, "calt" 1;
+  font-variant-ligatures: normal;
 }
 
 .variant-label {
