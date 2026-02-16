@@ -604,6 +604,16 @@ export const words: Record<string, WordEntry> = {
     "linluwi", 0xF198C, "sandbox",
     "internet, network, web, connected"
   ),
+
+  // Punctuation words (non-UCSUR codepoints)
+  "te": w(
+    "te", 0x300C, "core",
+    "(begin quotation)"
+  ),
+  "to": w(
+    "to", 0x300D, "core",
+    "(end quotation)"
+  ),
 };
 
 export function isWord(s: string): boolean {

@@ -15,7 +15,7 @@ import {
 } from "../../data";
 import {
   asciiToUcsurControl,
-} from "../../data/structural-map";
+} from "../../data";
 
 function createEditor(content = "") {
   return new Editor({
@@ -50,8 +50,8 @@ describe("isStructuralChar", () => {
 });
 
 describe("STRUCTURAL_CHARS set", () => {
-  it("has 10 members", () => {
-    expect(STRUCTURAL_CHARS.size).toBe(10);
+  it("has 18 members", () => {
+    expect(STRUCTURAL_CHARS.size).toBe(18);
   });
 });
 

@@ -10,7 +10,8 @@
  *   ni + ZWJ + ← ↑ → ↓ ↖ ↗ ↘ ↙
  */
 
-export const ZWJ = 0x200d;
+import { ZWJ } from "./control-chars";
+export { ZWJ };
 
 export interface NiDirection {
   index: number;
@@ -126,15 +127,16 @@ export function niDirectionByIndex(
 
 /**
  * Build the UCSUR string for a ni directional
- * variant: ni codepoint + ZWJ + arrow character.
+ * variant: ni codepoint + arrow character.
+ * The font combines these via GSUB ligature
+ * without needing ZWJ.
  */
-export function niZwjString(
+export function niDirString(
   niCp: number,
   dir: NiDirection
 ): string {
   return (
     String.fromCodePoint(niCp) +
-    String.fromCodePoint(ZWJ) +
     dir.arrow
   );
 }

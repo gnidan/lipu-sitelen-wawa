@@ -2,7 +2,6 @@ import {
   wordToCodepoint,
   codepointToChar,
   codepointToWord,
-  isUcsurChar,
   isControlChar,
   asciiToUcsurControl,
   ucsurControlToAscii,
@@ -29,15 +28,13 @@ export function* codepoints(
 }
 
 /**
- * Check if a codepoint is a UCSUR word glyph
- * (not a control character like a joiner or
- * cartouche marker).
+ * Check if a codepoint is a word glyph (a UCSUR
+ * word character or a special non-UCSUR word like
+ * te/to). Excludes control characters like joiners
+ * and cartouche markers.
  */
 export function isWordGlyph(cp: number): boolean {
-  return (
-    isUcsurChar(String.fromCodePoint(cp)) &&
-    !isControlChar(cp)
-  );
+  return cp in codepointToWord;
 }
 
 /**
@@ -56,7 +53,7 @@ export function isLatinLetter(cp: number): boolean {
  * representation. Word glyphs become word names,
  * control chars become ASCII equivalents (e.g. ")"
  * for END_OF_LONG_GLYPH), variation selectors are
- * stripped.
+ * stripped. ZWJ becomes "&".
  */
 export function toVerbatim(text: string): string {
   const result: string[] = [];
@@ -68,13 +65,6 @@ export function toVerbatim(text: string): string {
 
     if (isVariationSelector(cp)) continue;
 
-    const ascii = ucsurControlToAscii(cp);
-    if (ascii !== undefined) {
-      needsSpace = false;
-      result.push(ascii);
-      continue;
-    }
-
     if (isWordGlyph(cp)) {
       const word = codepointToWord[cp];
       if (word) {
@@ -82,15 +72,30 @@ export function toVerbatim(text: string): string {
         result.push(word);
         needsSpace = true;
 
-        // For "ni", check for ZWJ + arrow
-        if (word === "ni" && i + 1 < cps.length) {
+        // For "ni", check for arrow (or
+        // legacy ZWJ + arrow) after it
+        // (output as ni<dir> shorthand)
+        if (
+          word === "ni" &&
+          i + 1 < cps.length
+        ) {
           const [nextCp] = cps[i + 1];
-          if (nextCp === ZWJ && i + 2 < cps.length) {
+          // Direct arrow after ni
+          const dir1 =
+            niDirectionByArrowCp(nextCp);
+          if (dir1) {
+            result.push(dir1.verbatim);
+            i += 1; // skip arrow
+          } else if (
+            nextCp === ZWJ &&
+            i + 2 < cps.length
+          ) {
+            // Legacy ZWJ + arrow
             const [arrowCp] = cps[i + 2];
-            const dir =
+            const dir2 =
               niDirectionByArrowCp(arrowCp);
-            if (dir) {
-              result.push("&" + dir.verbatim);
+            if (dir2) {
+              result.push(dir2.verbatim);
               i += 2; // skip ZWJ + arrow
             }
           }
@@ -99,8 +104,13 @@ export function toVerbatim(text: string): string {
       }
     }
 
-    // For non-ni glyphs, skip standalone ZWJ
-    if (cp === ZWJ) continue;
+    // Control chars (including ZWJ) → ASCII
+    const ascii = ucsurControlToAscii(cp);
+    if (ascii !== undefined) {
+      needsSpace = false;
+      result.push(ascii);
+      continue;
+    }
 
     needsSpace = false;
     result.push(String.fromCodePoint(cp));
@@ -114,7 +124,9 @@ export function toVerbatim(text: string): string {
  * Word names become UCSUR glyphs, ASCII
  * structural chars become UCSUR control chars,
  * spaces between UCSUR tokens are stripped (font
- * handles spacing).
+ * handles spacing). "&" inserts ZWJ. Direction
+ * chars after "ni" (e.g. "ni^") produce
+ * ni + ZWJ + arrow.
  */
 export function fromVerbatim(text: string): string {
   const tokens: Array<{
@@ -146,26 +158,22 @@ export function fromVerbatim(text: string): string {
     const ch = text[i];
     i++;
 
-    const ctrl = asciiToUcsurControl(ch);
-    if (ctrl !== undefined) {
-      flush();
-      tokens.push({ ucsur: true, value: ctrl });
-      continue;
-    }
-
     const cp = ch.codePointAt(0)!;
     if (isLatinLetter(cp)) {
       wordBuf += ch;
       continue;
     }
 
-    // & after "ni" → ZWJ + arrow direction
+    // Direction char after "ni" → ni + arrow
+    // (e.g. "ni^" → ni + ↑)
     if (
-      ch === "&" &&
+      (ch === "<" || ch === "^" || ch === ">") &&
       wordBuf.toLowerCase() === "ni"
     ) {
+      // Back up one char so parseVerbatimDirection
+      // sees the direction from the start
       const parsed = parseVerbatimDirection(
-        text, i
+        text, i - 1
       );
       if (parsed) {
         const niCp =
@@ -176,13 +184,19 @@ export function fromVerbatim(text: string): string {
           ucsur: true,
           value:
             codepointToChar(niCp) +
-            String.fromCodePoint(ZWJ) +
             parsed.dir.arrow,
         });
         wordBuf = "";
-        i += parsed.length;
+        i += parsed.length - 1;
         continue;
       }
+    }
+
+    const ctrl = asciiToUcsurControl(ch);
+    if (ctrl !== undefined) {
+      flush();
+      tokens.push({ ucsur: true, value: ctrl });
+      continue;
     }
 
     flush();

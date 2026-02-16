@@ -4,7 +4,18 @@ export {
   codepointToChar,
   charToCodepoint,
   isUcsurChar,
-} from "./ucsur";
+  asciiToUcsurControl,
+  ucsurControlToAscii,
+  isVariationSelector,
+  words,
+  currentFont,
+  hasVariations,
+  getVariations,
+  isLongGlyphWord,
+} from "./font-capabilities";
+export type {
+  FontCapabilities,
+} from "./font-capabilities";
 
 export {
   STACKING_JOINER,
@@ -16,6 +27,11 @@ export {
   START_OF_CARTOUCHE,
   END_OF_CARTOUCHE,
   CARTOUCHE_EXTENSION,
+  MIDDLE_DOT,
+  COLON,
+  COMBINING_TALLY_MARK,
+  IDEOGRAPHIC_SPACE,
+  ZWJ,
   isControlChar,
   isJoiner,
   isCartoucheChar,
@@ -26,36 +42,29 @@ export {
   VARIATION_SELECTOR_BASE,
   variationIndexToSelector,
   glyphVariations,
-  hasVariations,
-  getVariations,
   applyVariation,
 } from "./variations";
 export type { VariationInfo } from "./variations";
 
 export {
-  asciiToUcsurControl,
-  ucsurControlToAscii,
-  isVariationSelector,
-} from "./structural-map";
-
-export {
-  words,
   isWord,
   getWord,
   wordsByCategory,
   wordsByPrefix,
   wordByFirstLetter,
 } from "./words";
-export type { WordEntry, WordCategory } from "./words";
+export type {
+  WordEntry,
+  WordCategory,
+} from "./words";
 
 export {
-  ZWJ,
   isNiArrowCp,
   NI_DIRECTIONS,
   niDirectionByVerbatim,
   niDirectionByArrowCp,
   niDirectionByIndex,
-  niZwjString,
+  niDirString,
   parseVerbatimDirection,
 } from "./ni-directions";
 export type {

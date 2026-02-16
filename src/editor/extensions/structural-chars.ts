@@ -1,16 +1,21 @@
 import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
+import type { EditorView } from "@tiptap/pm/view";
 import {
   isWord,
   wordToCodepoint,
   codepointToChar,
-} from "../../data";
-import {
   asciiToUcsurControl,
-} from "../../data/structural-map";
+  isNiArrowCp,
+  niDirectionByArrowCp,
+  niDirectionByVerbatim,
+} from "../../data";
 import {
   selectionMenuPluginKey,
 } from "../components/SelectionMenu";
+import {
+  verbatimTogglePluginKey,
+} from "./verbatim-toggle";
 
 export const structuralCharsPluginKey = new PluginKey(
   "structuralChars"
@@ -23,7 +28,8 @@ export const structuralCharsPluginKey = new PluginKey(
  */
 export const STRUCTURAL_CHARS = new Set([
   "+", "-", "[", "]", "(", ")", "{", "}",
-  "=", "_",
+  "=", "_", ".", ":", ",", "|", "&",
+  "<", "^", ">",
 ]);
 
 export function isStructuralChar(ch: string): boolean {
@@ -45,6 +51,79 @@ function extractWordBeforeCursor(
   return { word, start };
 }
 
+interface ArrowInfo {
+  verbatim: string;
+  arrow: string;
+  from: number;
+  to: number;
+}
+
+/**
+ * Check if the character immediately before the
+ * cursor is a ni direction arrow. Returns the
+ * direction info and document position, or null.
+ */
+function arrowBeforeCursor(
+  view: EditorView
+): ArrowInfo | null {
+  const { from, to } = view.state.selection;
+  if (from !== to) return null;
+
+  const $from = view.state.doc.resolve(from);
+  const textNode = $from.nodeBefore;
+  if (!textNode?.isText || !textNode.text) {
+    return null;
+  }
+
+  const text = textNode.text;
+  // Arrows are BMP (single code unit)
+  const lastCp = text.charCodeAt(text.length - 1);
+  if (!isNiArrowCp(lastCp)) return null;
+
+  const dir = niDirectionByArrowCp(lastCp);
+  if (!dir) return null;
+
+  return {
+    verbatim: dir.verbatim,
+    arrow: dir.arrow,
+    from: from - 1,
+    to: from,
+  };
+}
+
+/**
+ * Check if the character immediately after the
+ * cursor is a ni direction arrow. Returns the
+ * direction info and document position, or null.
+ */
+function arrowAfterCursor(
+  view: EditorView
+): ArrowInfo | null {
+  const { from, to } = view.state.selection;
+  if (from !== to) return null;
+
+  const $from = view.state.doc.resolve(from);
+  const textNode = $from.nodeAfter;
+  if (!textNode?.isText || !textNode.text) {
+    return null;
+  }
+
+  const text = textNode.text;
+  // Arrows are BMP (single code unit)
+  const firstCp = text.charCodeAt(0);
+  if (!isNiArrowCp(firstCp)) return null;
+
+  const dir = niDirectionByArrowCp(firstCp);
+  if (!dir) return null;
+
+  return {
+    verbatim: dir.verbatim,
+    arrow: dir.arrow,
+    from: from,
+    to: from + 1,
+  };
+}
+
 export const StructuralChars = Extension.create({
   name: "structuralChars",
 
@@ -56,12 +135,7 @@ export const StructuralChars = Extension.create({
         props: {
           handleKeyDown(view, event) {
             const ch = event.key;
-            if (
-              !STRUCTURAL_CHARS.has(ch) ||
-              ch.length !== 1
-            ) {
-              return false;
-            }
+            if (ch.length !== 1) return false;
 
             // Don't intercept if modifier keys
             // are held (Ctrl+, Alt+, Meta+)
@@ -73,12 +147,69 @@ export const StructuralChars = Extension.create({
               return false;
             }
 
+            // Don't intercept in verbatim mode
+            const vtState =
+              verbatimTogglePluginKey.getState(
+                view.state
+              );
+            if (vtState?.active) {
+              return false;
+            }
+
             // Defer to SelectionMenu when active
             const smState =
               selectionMenuPluginKey.getState(
                 view.state
               );
             if (smState?.analysis) {
+              return false;
+            }
+
+            // Arrow modification: combine typed
+            // direction char with existing arrow
+            // before or after cursor
+            // (e.g. ↑ + < → ↖)
+            if (
+              ch === "<" ||
+              ch === "^" ||
+              ch === ">" ||
+              ch === "v"
+            ) {
+              const before =
+                arrowBeforeCursor(view);
+              const after =
+                arrowAfterCursor(view);
+              const info = before ?? after;
+              if (info) {
+                // Try both orderings:
+                // existing+new and new+existing
+                const newDir =
+                  niDirectionByVerbatim(
+                    info.verbatim + ch
+                  ) ??
+                  niDirectionByVerbatim(
+                    ch + info.verbatim
+                  );
+                if (newDir) {
+                  event.preventDefault();
+                  view.dispatch(
+                    view.state.tr.insertText(
+                      newDir.arrow,
+                      info.from,
+                      info.to
+                    )
+                  );
+                  return true;
+                }
+              }
+              // 'v' is a letter — if no valid
+              // combination, fall through to
+              // normal input
+              if (ch === "v") return false;
+            }
+
+            // Standard structural chars
+            if (!STRUCTURAL_CHARS.has(ch)) {
               return false;
             }
 

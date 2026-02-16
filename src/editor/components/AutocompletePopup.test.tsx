@@ -103,7 +103,7 @@ describe("AutocompletePopup", () => {
   );
 
   it(
-    "shows arrow hint for ni instead of variants",
+    "shows direction hint for ni",
     () => {
       const editor = createEditor("<p></p>");
 
@@ -113,29 +113,34 @@ describe("AutocompletePopup", () => {
         />
       );
 
-      // "ni" shows arrow hint, not variant buttons
       act(() => {
         editor.commands.focus("end");
         editor.commands.insertContent("ni");
       });
 
+      // ni shows direction hint with compass keys
       const hint = container.querySelector(
         ".autocomplete-ni-hint"
       );
       expect(hint).toBeTruthy();
 
-      const arrows = container.querySelector(
-        ".autocomplete-ni-arrows"
+      const compass = container.querySelector(
+        ".ni-hint-compass"
       );
-      expect(arrows?.textContent).toBe(
-        "←↑→↓↖↗↘↙"
-      );
+      expect(compass).toBeTruthy();
 
-      // Should not show variant buttons
-      const variants = container.querySelector(
-        ".autocomplete-variants"
+      const keys = container.querySelectorAll(
+        ".ni-hint-compass__key"
       );
-      expect(variants).toBeNull();
+      expect(keys.length).toBe(3);
+      const labels = Array.from(keys)
+        .map((k) => k.textContent);
+      expect(labels).toEqual(["^", "<", ">"]);
+
+      const dirLabel = container.querySelector(
+        ".ni-hint-compass__label"
+      );
+      expect(dirLabel).toBeTruthy();
 
       editor.destroy();
     }

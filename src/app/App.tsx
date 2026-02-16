@@ -1,19 +1,274 @@
-import React from "react";
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+} from "react";
 import { FaGithub } from "react-icons/fa";
 import { Editor } from "../editor";
 import {
   SP,
 } from "../components/SitelenPona";
+import {
+  HelpButton,
+} from "../editor/components/HelpButton";
+import {
+  HelpPanel,
+} from "../editor/components/HelpPanel";
+import {
+  IndicatorTooltip,
+} from "./IndicatorTooltip";
 import "../styles/global.css";
 
+const DEFAULT_FONT_SIZE = 3.5;
+const FONT_SIZE_STEP = 0.5;
+const MIN_FONT_SIZE = 1;
+const MAX_FONT_SIZE = 6;
+const FONT_SIZE_KEY =
+  "lipu-sitelen-wawa:font-size";
+const INDICATORS_KEY =
+  "lipu-sitelen-wawa:indicators";
+
+function loadFontSize(): number {
+  try {
+    const raw = localStorage.getItem(FONT_SIZE_KEY);
+    if (raw) {
+      const n = Number(raw);
+      if (n >= MIN_FONT_SIZE && n <= MAX_FONT_SIZE) {
+        return n;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return DEFAULT_FONT_SIZE;
+}
+
 export function App() {
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [controlsOpen, setControlsOpen] =
+    useState(false);
+  const [fontSize, setFontSize] =
+    useState(loadFontSize);
+  const [tooltipDismissed, setTooltipDismissed] =
+    useState(false);
+  const [tooltipNoDelay, setTooltipNoDelay] =
+    useState(false);
+  const [indicators, setIndicators] =
+    useState(() => {
+      try {
+        return localStorage.getItem(
+          INDICATORS_KEY) !== "off";
+      } catch {
+        return true;
+      }
+    });
+
+  useEffect(() => {
+    try {
+      if (fontSize === DEFAULT_FONT_SIZE) {
+        localStorage.removeItem(FONT_SIZE_KEY);
+      } else {
+        localStorage.setItem(
+          FONT_SIZE_KEY, String(fontSize)
+        );
+      }
+    } catch {
+      // ignore
+    }
+  }, [fontSize]);
+
+  useEffect(() => {
+    try {
+      if (indicators) {
+        localStorage.removeItem(INDICATORS_KEY);
+      } else {
+        localStorage.setItem(
+          INDICATORS_KEY, "off"
+        );
+      }
+    } catch {
+      // ignore
+    }
+  }, [indicators]);
+  const toggleHelp = useCallback(() => {
+    setHelpOpen((prev) => !prev);
+  }, []);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "?") return;
+      const active = document.activeElement;
+      if (
+        active instanceof HTMLElement &&
+        active.closest(".ProseMirror")
+      ) {
+        return;
+      }
+      toggleHelp();
+    }
+    document.addEventListener(
+      "keydown", onKeyDown
+    );
+    return () => {
+      document.removeEventListener(
+        "keydown", onKeyDown
+      );
+    };
+  }, [toggleHelp]);
+
   return (
-    <div className="app">
+    <div
+      className={
+        "app"
+        + (indicators
+          ? ""
+          : " app--hide-indicators")
+      }
+      style={{
+        "--editor-font-size": `${fontSize}rem`,
+      } as React.CSSProperties}
+    >
       <header className="app__header">
-        <h1><SP>lipu+sitelen wawa</SP></h1>
+        <div className="app__title">
+          <h1><SP>lipu+sitelen wawa</SP></h1>
+        </div>
+        <div className="app__panels">
+          {helpOpen && <HelpPanel />}
+        </div>
         <p className="app__subtitle">
-          <SP>o sitelen lon(ni&amp;&lt;v)</SP>
+          <SP>o sitelen lon(ni&lt;v)</SP>
         </p>
+        <div className="app__toolbar">
+          <div className={
+            "button-group"
+            + " button-group--allow-overflow"
+            + (controlsOpen
+              ? ""
+              : " button-group--hidden")
+          }>
+            <span className="button-group__label">
+              <SP>lukin</SP>
+            </span>
+            <div
+              className={
+                "indicator-tooltip-anchor"
+                + (tooltipDismissed
+                  ? " indicator-tooltip-anchor"
+                    + "--dismissed"
+                  : "")
+                + (tooltipNoDelay
+                  ? " indicator-tooltip-anchor"
+                    + "--no-delay"
+                  : "")
+              }
+              onMouseLeave={() => {
+                setTooltipDismissed(false);
+                setTooltipNoDelay(false);
+              }}
+              onTransitionEnd={() =>
+                setTooltipNoDelay(false)}
+            >
+              <button
+                type="button"
+                className={
+                  "toolbar-button"
+                  + (indicators
+                    ? " toolbar-button--active"
+                    : "")
+                }
+                tabIndex={
+                  controlsOpen ? 0 : -1
+                }
+                onClick={() => {
+                  setIndicators((prev) => {
+                    setTooltipDismissed(prev);
+                    if (prev) {
+                      setTooltipNoDelay(false);
+                    } else {
+                      setTooltipNoDelay(true);
+                    }
+                    return !prev;
+                  });
+                }}
+                onMouseDown={(e) =>
+                  e.preventDefault()}
+              >
+                <SP>nasin-nena</SP>
+              </button>
+              <IndicatorTooltip />
+            </div>
+          </div>
+          <div className={
+            "button-group"
+            + (controlsOpen
+              ? ""
+              : " button-group--hidden")
+          }>
+            <span className="button-group__label">
+              <SP>sitelen</SP>
+            </span>
+            <button
+              type="button"
+              className="toolbar-button"
+              tabIndex={controlsOpen ? 0 : -1}
+              disabled={
+                fontSize <= MIN_FONT_SIZE}
+              onClick={() => setFontSize((s) =>
+                Math.max(s - FONT_SIZE_STEP,
+                  MIN_FONT_SIZE))}
+              onMouseDown={(e) =>
+                e.preventDefault()}
+            >
+              <SP>lili</SP>
+            </button>
+            <button
+              type="button"
+              className="toolbar-button"
+              tabIndex={controlsOpen ? 0 : -1}
+              disabled={
+                fontSize === DEFAULT_FONT_SIZE}
+              onClick={() =>
+                setFontSize(DEFAULT_FONT_SIZE)}
+              onMouseDown={(e) =>
+                e.preventDefault()}
+            >
+              <SP>meso</SP>
+            </button>
+            <button
+              type="button"
+              className="toolbar-button"
+              tabIndex={controlsOpen ? 0 : -1}
+              disabled={
+                fontSize >= MAX_FONT_SIZE}
+              onClick={() => setFontSize((s) =>
+                Math.min(s + FONT_SIZE_STEP,
+                  MAX_FONT_SIZE))}
+              onMouseDown={(e) =>
+                e.preventDefault()}
+            >
+              <SP>suli</SP>
+            </button>
+          </div>
+          <button
+            type="button"
+            className={
+              "toolbar-toggle"
+              + (controlsOpen
+                ? " toolbar-toggle--active"
+                : "")
+            }
+            onClick={() => setControlsOpen(
+              (prev) => !prev)}
+            onMouseDown={(e) =>
+              e.preventDefault()}
+          >
+            <SP>lawa</SP>
+          </button>
+          <HelpButton
+            active={helpOpen}
+            onToggle={toggleHelp}
+          />
+        </div>
       </header>
       <main className="app__main">
         <Editor />

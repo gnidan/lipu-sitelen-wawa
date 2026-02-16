@@ -10,7 +10,7 @@ import {
   codepointToChar,
   applyVariation,
   niDirectionByIndex,
-  niZwjString,
+  niDirString,
 } from "../../data";
 
 declare module "@tiptap/core" {
@@ -44,7 +44,7 @@ export const SitelenPona = Extension.create({
             const dir =
               niDirectionByIndex(variation);
             text = dir
-              ? niZwjString(cp, dir)
+              ? niDirString(cp, dir)
               : codepointToChar(cp);
           } else {
             text = codepointToChar(cp);

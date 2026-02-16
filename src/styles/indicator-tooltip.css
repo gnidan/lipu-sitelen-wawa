@@ -1,0 +1,106 @@
+/* ── Indicator tooltip ──────────────────────── */
+
+.indicator-tooltip-anchor {
+  position: relative;
+}
+
+.indicator-tooltip {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  padding-top: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.indicator-tooltip-anchor:hover
+  .indicator-tooltip {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0.15s ease 0.3s;
+}
+
+.indicator-tooltip-anchor--dismissed:hover
+  .indicator-tooltip {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.indicator-tooltip-anchor--no-delay:hover
+  .indicator-tooltip {
+  transition: opacity 0.15s ease;
+}
+
+.indicator-tooltip__card {
+  background: #fff;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 2px;
+  user-select: none;
+}
+
+.indicator-tooltip__scene {
+  position: relative;
+  overflow: hidden;
+  border-radius: 6px;
+}
+
+/* ── Mini editor overrides ──────────────────── */
+
+.indicator-tooltip__editor {
+  font-size: 1.8rem !important;
+  min-height: auto !important;
+  padding: 4px 16px 20px !important;
+  line-height: 1.5 !important;
+}
+
+.indicator-tooltip__editor p {
+  white-space: nowrap;
+}
+
+/* Slide the editor content so the cursor
+   stays centered in the scene */
+.indicator-tooltip .tiptap {
+  transition: transform 0.45s ease-in-out;
+}
+
+/* Always show indicators in tooltip, even
+   when app--hide-indicators is active */
+.indicator-tooltip
+  .structural-indicator-overlay {
+  display: block !important;
+}
+
+/* Full-width highlight band behind the
+   indicator row to show what the toggle
+   controls */
+.indicator-tooltip__highlight {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: calc(1rem + 6px);
+  margin-top: -3px;
+  background: rgba(74, 122, 181, 0.1);
+  pointer-events: none;
+}
+
+/* ── Fake cursor (absolutely positioned) ───── */
+
+.indicator-tooltip__cursor {
+  position: absolute;
+  width: 2px;
+  background: #333;
+  pointer-events: none;
+  animation:
+    indicator-tooltip-blink 1s step-end infinite;
+}
+
+@keyframes indicator-tooltip-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}

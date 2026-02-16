@@ -16,9 +16,9 @@ export function HelpButton({
     <button
       type="button"
       className={
-        "help-button"
+        "tab-toggle"
         + (active
-          ? " help-button--active"
+          ? " tab-toggle--active"
           : "")
       }
       onClick={onToggle}

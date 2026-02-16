@@ -1,9 +1,6 @@
 import React, {
   useRef,
   useMemo,
-  useState,
-  useCallback,
-  useEffect,
 } from "react";
 import {
   useEditor,
@@ -33,6 +30,12 @@ import {
   Verbatim,
 } from "../extensions/verbatim";
 import {
+  VerbatimToggle,
+} from "../extensions/verbatim-toggle";
+import {
+  StructuralIndicators,
+} from "../extensions/structural-indicators";
+import {
   createSelectionMenuPlugin,
   SelectionMenu,
 } from "./SelectionMenu";
@@ -40,8 +43,6 @@ import {
   AutocompletePopup,
 } from "./AutocompletePopup";
 import { CopyBar } from "./CopyBar";
-import { HelpButton } from "./HelpButton";
-import { HelpPanel } from "./HelpPanel";
 
 
 const SelectionMenuExtension = Extension.create({
@@ -95,35 +96,6 @@ export function Editor() {
     useMemo(loadSavedContent, []);
   const saveTimer =
     useRef<ReturnType<typeof setTimeout>>();
-  const [helpOpen, setHelpOpen] = useState(false);
-  const toggleHelp = useCallback(() => {
-    setHelpOpen((prev) => !prev);
-  }, []);
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== "?") {
-        return;
-      }
-
-      const active = document.activeElement;
-      if (
-        active instanceof HTMLElement &&
-        active.closest(".ProseMirror")
-      ) {
-        return;
-      }
-
-      toggleHelp();
-    }
-
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener(
-        "keydown", onKeyDown
-      );
-    };
-  }, [toggleHelp]);
 
   const editor = useEditor({
     content: savedContent,
@@ -160,24 +132,19 @@ export function Editor() {
         placeholder: "\u{F1944}\u{F1960}"
       }),
       SelectionMenuExtension,
+      VerbatimToggle,
       Autocomplete,
       StructuralChars,
       VariantKeymap,
       PasteHandler,
       Verbatim,
+      StructuralIndicators,
       TextNodeNormalizer,
     ],
   });
 
   return (
     <div className="editor-outer">
-      <div className="editor-toolbar">
-        <HelpButton
-          active={helpOpen}
-          onToggle={toggleHelp}
-        />
-        {helpOpen && <HelpPanel />}
-      </div>
       <div className="editor-wrapper">
         <div className="editor-content-wrapper">
           <EditorContent editor={editor} />

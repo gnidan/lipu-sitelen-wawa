@@ -12,13 +12,16 @@ import type {
   AutocompleteState,
 } from "../extensions/autocomplete";
 import {
+  SP
+} from "../../components/SitelenPona";
+import {
   wordToCodepoint,
   codepointToChar,
   hasVariations,
   getVariations,
   applyVariation,
   niDirectionByVerbatim,
-  niZwjString,
+  niDirString,
 } from "../../data";
 
 interface AutocompletePopupProps {
@@ -99,7 +102,7 @@ function niPreviewChar(buf: string): string {
   if (!buf) return codepointToChar(cp);
   const dir = niDirectionByVerbatim(buf);
   if (!dir) return codepointToChar(cp);
-  return niZwjString(cp, dir);
+  return niDirString(cp, dir);
 }
 
 export function AutocompletePopup({
@@ -175,7 +178,7 @@ export function AutocompletePopup({
       if (cp === undefined) return;
       const dir = niDirectionByVerbatim(verbatim);
       if (!dir) return;
-      const text = niZwjString(cp, dir);
+      const text = niDirString(cp, dir);
       const tr = editor.state.tr.insertText(
         text, from, to
       );
@@ -196,6 +199,31 @@ export function AutocompletePopup({
     }
   }, [state?.activeIndex]);
 
+  // Lock popup width so it doesn't jitter as
+  // the active item changes. Reset when the
+  // match list changes (new prefix typed).
+  const lockedWidth = useRef(0);
+  const matchKey = state?.matches
+    .map((m) => m.word).join(",") ?? "";
+
+  useEffect(() => {
+    lockedWidth.current = 0;
+  }, [matchKey]);
+
+  useEffect(() => {
+    if (!listRef.current) return;
+    const el = listRef.current;
+    // Temporarily clear min-width to measure
+    // natural width
+    el.style.minWidth = "";
+    const w = el.offsetWidth;
+    if (w > lockedWidth.current) {
+      lockedWidth.current = w;
+    }
+    el.style.minWidth =
+      lockedWidth.current + "px";
+  });
+
   if (!state || state.matches.length === 0) {
     return null;
   }
@@ -215,17 +243,15 @@ export function AutocompletePopup({
   const activeVariations =
     activeWord ? getVariations(activeWord) : [];
 
-  const niDirBuf = state.niDirBuf ?? null;
   const isNiActive = activeWord === "ni";
-  const cells = isNiActive
-    ? compassCells(
-        niDirBuf !== null ? niDirBuf : ""
-      )
+  const niDirBuf = state.niDirBuffer;
+  const showCompass =
+    isNiActive && niDirBuf.length > 0;
+  const cells = showCompass
+    ? compassCells(niDirBuf)
     : [];
-  const niPreview = isNiActive
-    ? niPreviewChar(
-        niDirBuf !== null ? niDirBuf : ""
-      )
+  const niPreview = showCompass
+    ? niPreviewChar(niDirBuf)
     : "";
 
   return (
@@ -236,18 +262,19 @@ export function AutocompletePopup({
     >
       {state.matches.map((entry, i) => {
         if (
-          isNiActive &&
-          niDirBuf !== null &&
+          showCompass &&
           entry.word !== "ni"
         ) {
           return null;
         }
+        const isActive =
+          i === state.activeIndex;
         return (
+        <React.Fragment key={entry.word}>
         <div
-          key={entry.word}
           className={
             "autocomplete-item" +
-            (i === state.activeIndex
+            (isActive
               ? " autocomplete-item--active"
               : "")
           }
@@ -259,16 +286,12 @@ export function AutocompletePopup({
           <span className={
             "autocomplete-item__glyph"
             + (hasVariations(entry.word)
-              ? entry.word === "ni"
-                ? " autocomplete-item"
-                  + "__glyph--ni-variants"
-                : " autocomplete-item"
-                  + "__glyph--has-variants"
+              ? " autocomplete-item"
+                + "__glyph--has-variants"
               : "")
           }>
             {entry.word === "ni" &&
-            niDirBuf !== null &&
-            niDirBuf.length > 0
+            showCompass
               ? niPreview
               : glyphChar(entry.word)}
           </span>
@@ -280,159 +303,176 @@ export function AutocompletePopup({
               {entry.definition}
             </span>
           </span>
-          {i === state.activeIndex && (
+          {isActive && (
             <span
               className={
                 "autocomplete-item__hint"
               }
             >
-              {activeWord === "ni"
-                ? niDirBuf !== null
-                  ? (
-                    <>
-                      <kbd className="keycap">
-                        {"\u2423"}
-                      </kbd>
-                      <kbd className="keycap">
-                        {"\u21B5"}
-                      </kbd>
-                    </>
-                  )
-                  : (
-                    <>
-                      <kbd className="keycap">
-                        {"\u2423"}
-                      </kbd>
-                      <kbd className="keycap">
-                        &
-                      </kbd>
-                    </>
-                  )
-                : activeHasVariants
-                  ? (
-                    <>
-                      <kbd className="keycap">
-                        {"\u2423"}
-                      </kbd>
-                      <kbd className="keycap">
-                        1
-                      </kbd>
-                      <span
-                        className="keycap-range"
-                      >
-                        {"\u2026"}
-                      </span>
-                      <kbd className="keycap">
-                        8
-                      </kbd>
-                    </>
-                  )
-                  : (
-                    <kbd className="keycap">
-                      {"\u2423"}
-                    </kbd>
-                  )}
+              <kbd>
+                {"\u23B5"}
+              </kbd>
+              <kbd>
+                {"\u21B5"}
+              </kbd>
             </span>
           )}
         </div>
-        );
-      })}
-      {isNiActive && niDirBuf !== null ? (
-        <div className="autocomplete-compass">
-          {cells.map((cell) => (
-            <div
-              key={cell.key}
-              className={[
-                "compass-key",
-                cell.enabled &&
-                  "compass-key--enabled",
-                cell.buffered &&
-                  "compass-key--buffered",
-                !cell.enabled &&
-                  !cell.buffered &&
-                  "compass-key--disabled",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-              style={{
-                gridArea: cell.gridArea,
-              }}
-              onMouseDown={(e) => {
-                if (!cell.enabled) return;
-                e.preventDefault();
-                handleCompassClick(
-                  cell.verbatim
-                );
-              }}
-            >
-              <span className="compass-arrow">
-                {cell.arrow || cell.key}
-              </span>
-              <span className="compass-keylabel">
-                {cell.key}
-              </span>
-            </div>
-          ))}
-          <div
-            className="compass-center"
-            style={{ gridArea: "center" }}
-          >
-            <span className="compass-glyph">
-              {niPreview}
-            </span>
-          </div>
-        </div>
-      ) : isNiActive ? (
-        <div className="autocomplete-ni-hint">
-          <span className="autocomplete-ni-arrows">
-            {"←↑→↓↖↗↘↙"}
-          </span>
-          <span className="autocomplete-ni-key">
-            {"&"}
-          </span>
-        </div>
-      ) : (
-        activeHasVariants &&
-        activeVariations.length > 0 && (
-          <div className="autocomplete-variants">
-            {activeVariations.map((v) => (
-              <button
-                key={v.index}
-                type="button"
-                className={
-                  "autocomplete-variant-btn"
-                }
-                title={v.description}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  handleItemClickWithVariation(
-                    activeWord!,
-                    v.index
-                  );
+        {isActive && (
+          showCompass ? (
+            <div className="autocomplete-compass">
+              {cells.map((cell) => (
+                <div
+                  key={cell.key}
+                  className={[
+                    "compass-key",
+                    cell.enabled &&
+                      "compass-key--enabled",
+                    cell.buffered &&
+                      "compass-key--buffered",
+                    !cell.enabled &&
+                      !cell.buffered &&
+                      "compass-key--disabled",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  style={{
+                    gridArea: cell.gridArea,
+                  }}
+                  onMouseDown={(e) => {
+                    if (!cell.enabled) return;
+                    e.preventDefault();
+                    handleCompassClick(
+                      cell.verbatim
+                    );
+                  }}
+                >
+                  <span
+                    className="compass-arrow"
+                  >
+                    {cell.arrow || cell.key}
+                  </span>
+                  <span
+                    className={
+                      "compass-keylabel"
+                    }
+                  >
+                    {cell.key}
+                  </span>
+                </div>
+              ))}
+              <div
+                className="compass-center"
+                style={{
+                  gridArea: "center",
                 }}
               >
                 <span
-                  className={
-                    "autocomplete-variant-glyph"
-                  }
+                  className="compass-glyph"
                 >
-                  {glyphCharWithVariation(
-                    activeWord!,
-                    v.index
-                  )}
+                  {niPreview}
                 </span>
+              </div>
+            </div>
+          ) : isNiActive ? (
+            <div
+              className="autocomplete-ni-hint"
+            >
+              <div
+                className={
+                  "ni-hint-compass"
+                }
+              >
+                <kbd
+                  className={
+                    "ni-hint-compass__key"
+                  }
+                  style={{
+                    gridArea: "up",
+                  }}
+                >
+                  {"^"}
+                </kbd>
+                <kbd
+                  className={
+                    "ni-hint-compass__key"
+                  }
+                  style={{
+                    gridArea: "left",
+                  }}
+                >
+                  {"<"}
+                </kbd>
                 <span
                   className={
-                    "autocomplete-variant-key"
+                    "ni-hint-compass__label"
                   }
+                  style={{
+                    gridArea: "center",
+                  }}
                 >
-                  {v.index}
+                  <SP>nasin seme</SP>
                 </span>
-              </button>
-            ))}
-          </div>
-        )
-      )}
+                <kbd
+                  className={
+                    "ni-hint-compass__key"
+                  }
+                  style={{
+                    gridArea: "right",
+                  }}
+                >
+                  {">"}
+                </kbd>
+              </div>
+            </div>
+          ) : (
+            activeHasVariants &&
+            activeVariations.length > 0 && (
+              <div
+                className={
+                  "autocomplete-variants"
+                }
+              >
+                {activeVariations.map((v) => (
+                  <button
+                    key={v.index}
+                    type="button"
+                    className={
+                      "autocomplete-variant"
+                      + "-btn"
+                    }
+                    title={v.description}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleItemClickWithVariation(
+                        activeWord!,
+                        v.index
+                      );
+                    }}
+                  >
+                    <span
+                      className={
+                        "autocomplete-variant"
+                        + "-glyph"
+                      }
+                    >
+                      {glyphCharWithVariation(
+                        activeWord!,
+                        v.index
+                      )}
+                    </span>
+                    <kbd>
+                      {v.index}
+                    </kbd>
+                  </button>
+                ))}
+              </div>
+            )
+          )
+        )}
+        </React.Fragment>
+        );
+      })}
     </div>
   );
 }

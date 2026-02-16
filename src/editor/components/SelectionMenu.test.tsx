@@ -64,6 +64,7 @@ function mockAnalysis(overrides: any = {}) {
     to: 3,
     singleGlyphWithVariants: {
       word: "ni",
+      currentIndex: 1,
     },
     containsUcsur: true,
     containsLatin: false,
@@ -137,7 +138,7 @@ describe("SelectionMenu", () => {
 
       const variations = getVariations("ni");
       const buttons = container.querySelectorAll(
-        ".variant-option"
+        ".variant-row__btn"
       );
       // "ni" has no default option (variant 4 is
       // the default glyph), so count = variations
@@ -192,40 +193,49 @@ describe("SelectionMenu", () => {
     }
   );
 
-  it("shows default option with key 0", () => {
-    const editor = createEditor("<p></p>");
-    editor.commands.insertSitelenPona("jaki");
-    mockCoordsAtPos(editor);
+  it(
+    "shows only variation buttons (no default)",
+    () => {
+      const editor = createEditor("<p></p>");
+      editor.commands.insertSitelenPona("jaki");
+      mockCoordsAtPos(editor);
 
-    const { container } = render(
-      <SelectionMenu
-        editor={editor as any}
-      />
-    );
-
-    act(() => {
-      const tr = editor.state.tr.setMeta(
-        selectionMenuPluginKey,
-        mockAnalysis({
-          singleGlyphWithVariants: {
-            word: "jaki",
-          },
-          firstGlyphWord: "jaki",
-          verbatimPreview: "jaki",
-        })
+      const { container } = render(
+        <SelectionMenu
+          editor={editor as any}
+        />
       );
-      editor.view.dispatch(tr);
-    });
 
-    const defaultBtn = container.querySelector(
-      '[title="Default"]'
-    );
-    expect(defaultBtn).toBeTruthy();
-    expect(
-      defaultBtn!.textContent
-    ).toContain("0");
-    editor.destroy();
-  });
+      act(() => {
+        const tr = editor.state.tr.setMeta(
+          selectionMenuPluginKey,
+          mockAnalysis({
+            singleGlyphWithVariants: {
+              word: "jaki",
+              currentIndex: 1,
+            },
+            firstGlyphWord: "jaki",
+            verbatimPreview: "jaki",
+          })
+        );
+        editor.view.dispatch(tr);
+      });
+
+      const defaultBtn = container.querySelector(
+        '[title="Default"]'
+      );
+      expect(defaultBtn).toBeNull();
+
+      const buttons = container.querySelectorAll(
+        ".variant-row__btn"
+      );
+      const variations = getVariations("jaki");
+      expect(buttons.length).toBe(
+        variations.length
+      );
+      editor.destroy();
+    }
+  );
 
   it(
     "plugin state contains actions array",
@@ -254,7 +264,8 @@ describe("SelectionMenu", () => {
       expect(
         Array.isArray(st.actions)
       ).toBe(true);
-      expect(st.activeActionIndex).toBe(0);
+      // -1 = variant row is active initially
+      expect(st.activeActionIndex).toBe(-1);
       editor.destroy();
     }
   );
@@ -283,19 +294,23 @@ describe("SelectionMenu", () => {
           editor.state
         ) as SelectionMenuPluginState;
 
-      if (st1.actions.length < 2) {
+      if (st1.actions.length < 1) {
         // Not enough actions to test nav
         editor.destroy();
         return;
       }
 
-      expect(st1.activeActionIndex).toBe(0);
+      // -1 = variant row initially
+      expect(st1.activeActionIndex).toBe(-1);
 
-      // Dispatch ArrowDown meta
+      // Dispatch ArrowDown navigate meta
       act(() => {
         const tr = editor.state.tr.setMeta(
           selectionMenuPluginKey,
-          { activeActionIndex: 1 }
+          {
+            navigate: true,
+            activeActionIndex: 0,
+          }
         );
         editor.view.dispatch(tr);
       });
@@ -304,7 +319,7 @@ describe("SelectionMenu", () => {
         selectionMenuPluginKey.getState(
           editor.state
         ) as SelectionMenuPluginState;
-      expect(st2.activeActionIndex).toBe(1);
+      expect(st2.activeActionIndex).toBe(0);
 
       editor.destroy();
     }
