@@ -38,8 +38,6 @@ export interface AutocompleteState {
   matches: WordEntry[];
   /** Index of highlighted item in popup */
   activeIndex: number;
-  /** Screen coords for popup positioning */
-  coords: { left: number; top: number } | null;
   /** Document position range of composing text */
   range: { from: number; to: number } | null;
   /**
@@ -53,7 +51,6 @@ const EMPTY_STATE: AutocompleteState = {
   prefix: "",
   matches: [],
   activeIndex: 0,
-  coords: null,
   range: null,
   niDirBuffer: "",
 };
@@ -316,7 +313,6 @@ export const Autocomplete = Extension.create({
               prefix: composing.word,
               matches,
               activeIndex,
-              coords: null,
               range: {
                 from: composing.from,
                 to: composing.to,
@@ -774,42 +770,6 @@ export const Autocomplete = Extension.create({
           return tr;
         },
 
-        view() {
-          return {
-            update(view) {
-              const pluginState =
-                autocompletePluginKey.getState(
-                  view.state
-                ) as
-                  | AutocompleteState
-                  | undefined;
-
-              if (
-                !pluginState ||
-                !pluginState.range ||
-                pluginState.matches.length === 0
-              ) {
-                return;
-              }
-
-              try {
-                const coords =
-                  view.coordsAtPos(
-                    pluginState.range.from
-                  );
-                (
-                  pluginState as AutocompleteState
-                ).coords = {
-                  left: coords.left,
-                  top: coords.bottom,
-                };
-              } catch {
-                // coordsAtPos can throw if
-                // editor isn't fully mounted
-              }
-            },
-          };
-        },
       }),
     ];
   },

@@ -165,8 +165,13 @@ export function App() {
                 setTooltipDismissed(false);
                 setTooltipNoDelay(false);
               }}
-              onTransitionEnd={() =>
-                setTooltipNoDelay(false)}
+              onTransitionEnd={(e) => {
+                if (
+                  e.target === e.currentTarget
+                ) {
+                  setTooltipNoDelay(false);
+                }
+              }}
             >
               <button
                 type="button"
@@ -180,22 +185,20 @@ export function App() {
                   controlsOpen ? 0 : -1
                 }
                 onClick={() => {
-                  setIndicators((prev) => {
-                    setTooltipDismissed(prev);
-                    if (prev) {
-                      setTooltipNoDelay(false);
-                    } else {
-                      setTooltipNoDelay(true);
-                    }
-                    return !prev;
-                  });
+                  setTooltipDismissed(indicators);
+                  setTooltipNoDelay(!indicators);
+                  setIndicators(
+                    (prev) => !prev
+                  );
                 }}
                 onMouseDown={(e) =>
                   e.preventDefault()}
               >
                 <SP>nasin-nena</SP>
               </button>
-              <IndicatorTooltip />
+              {controlsOpen && (
+                <IndicatorTooltip />
+              )}
             </div>
           </div>
           <div className={

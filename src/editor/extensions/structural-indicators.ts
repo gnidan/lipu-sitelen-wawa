@@ -460,16 +460,54 @@ export const StructuralIndicators =
             editorView.dom.parentElement
               ?.appendChild(overlay);
 
+            let prevDoc = editorView.state.doc;
+            let prevFrom = -1;
+            let prevTo = -1;
+            let prevFocused = false;
+            let prevVerbatimActive = false;
+
+            const doRender = (
+              view: EditorView,
+              force?: boolean,
+            ) => {
+              const { from, to } =
+                view.state.selection;
+              const doc = view.state.doc;
+              const focused =
+                alwaysShow || view.hasFocus();
+              const vtSt =
+                verbatimTogglePluginKey.getState(
+                  view.state
+                );
+              const vActive = !!vtSt?.active;
+              if (
+                !force &&
+                doc === prevDoc &&
+                from === prevFrom &&
+                to === prevTo &&
+                focused === prevFocused &&
+                vActive === prevVerbatimActive
+              ) {
+                return;
+              }
+              prevDoc = doc;
+              prevFrom = from;
+              prevTo = to;
+              prevFocused = focused;
+              prevVerbatimActive = vActive;
+              renderOverlay(
+                view, overlay, alwaysShow,
+              );
+            };
+
             const onBlur = () => {
               if (!alwaysShow) {
                 overlay.innerHTML = "";
               }
+              prevFocused = false;
             };
             const onFocus = () => {
-              renderOverlay(
-                editorView, overlay,
-                alwaysShow,
-              );
+              doRender(editorView, true);
             };
             editorView.dom.addEventListener(
               "blur", onBlur
@@ -478,15 +516,11 @@ export const StructuralIndicators =
               "focus", onFocus
             );
 
-            renderOverlay(
-              editorView, overlay, alwaysShow,
-            );
+            doRender(editorView, true);
 
             return {
               update(view) {
-                renderOverlay(
-                  view, overlay, alwaysShow,
-                );
+                doRender(view);
               },
               destroy() {
                 editorView.dom

@@ -1,6 +1,7 @@
 import React, {
   useRef,
   useMemo,
+  useEffect,
 } from "react";
 import {
   useEditor,
@@ -102,10 +103,15 @@ export function Editor() {
     onUpdate({ editor: e }) {
       clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => {
-        localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify(e.getJSON())
-        );
+        try {
+          localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify(e.getJSON())
+          );
+        } catch {
+          // QuotaExceededError or other
+          // storage errors
+        }
       }, 500);
     },
     editorProps: {
@@ -142,6 +148,11 @@ export function Editor() {
       TextNodeNormalizer,
     ],
   });
+
+  useEffect(
+    () => () => clearTimeout(saveTimer.current),
+    []
+  );
 
   return (
     <div className="editor-outer">

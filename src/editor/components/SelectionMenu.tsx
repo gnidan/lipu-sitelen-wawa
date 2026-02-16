@@ -22,6 +22,7 @@ import {
   applyVariation,
   isVariationSelector,
   isLongGlyphWord,
+  VARIATION_SELECTOR_BASE,
   START_OF_CARTOUCHE,
   END_OF_CARTOUCHE,
   CARTOUCHE_EXTENSION,
@@ -35,9 +36,6 @@ import {
   niDirectionByIndex,
   niDirString,
   parseVerbatimDirection,
-} from "../../data";
-import {
-  VARIATION_SELECTOR_BASE,
 } from "../../data";
 import {
   codepoints,
@@ -1718,7 +1716,10 @@ export function createSelectionMenuPlugin() {
             return true;
           }
 
-          if (st.actions.length > 0) {
+          if (
+            st.actions.length > 0 &&
+            st.activeActionIndex >= 0
+          ) {
             view.dispatch(
               view.state.tr.setMeta(
                 selectionMenuPluginKey,
@@ -2249,6 +2250,94 @@ function convertFromVerbatimAction(
   editor.view.dispatch(tr);
 }
 
+// ── Action execution ────────────────────────────
+
+function performAction(
+  editor: Editor,
+  actionId: ActionId,
+  analysis: SelectionAnalysis
+): void {
+  const {
+    from,
+    to,
+    insideCartouche,
+    insideLongGlyph,
+    adjacentLongGlyph,
+    precedingLongGlyph,
+  } = analysis;
+
+  switch (actionId) {
+    case "wrapCartouche":
+      wrapInCartouche(editor, from, to);
+      break;
+    case "unwrapCartouche":
+      if (insideCartouche) {
+        unwrapCartouche(
+          editor,
+          insideCartouche.wrapFrom,
+          insideCartouche.wrapTo
+        );
+      }
+      break;
+    case "wrapLongGlyph":
+      wrapInLongGlyph(
+        editor,
+        from,
+        to,
+        adjacentLongGlyph,
+        precedingLongGlyph?.glyphFrom ?? null
+      );
+      break;
+    case "unwrapLongGlyph":
+      if (insideLongGlyph) {
+        if (analysis.longGlyphTail) {
+          shrinkLongGlyphTail(
+            editor,
+            from,
+            insideLongGlyph.wrapTo
+          );
+        } else {
+          unwrapLongGlyph(
+            editor,
+            insideLongGlyph.wrapFrom,
+            insideLongGlyph.wrapTo
+          );
+        }
+      }
+      break;
+    case "stack":
+      joinWithJoiner(
+        editor, from, to, STACKING_JOINER
+      );
+      break;
+    case "scale":
+      joinWithJoiner(
+        editor, from, to, SCALING_JOINER
+      );
+      break;
+    case "join":
+      joinWithJoiner(
+        editor, from, to, ZWJ
+      );
+      break;
+    case "unstack":
+    case "unscale":
+    case "unjoin":
+      removeJoiners(editor, from, to);
+      break;
+    case "convertToVerbatim":
+      convertToVerbatimAction(
+        editor, from, to
+      );
+      break;
+    case "convertToSP":
+      convertFromVerbatimAction(
+        editor, from, to
+      );
+      break;
+  }
+}
+
 // ── React component ─────────────────────────────
 
 interface SelectionMenuProps {
@@ -2615,98 +2704,7 @@ export function SelectionMenu({
   const executeAction = useCallback(
     (actionId: ActionId) => {
       if (!analysis) return;
-      const {
-        from,
-        to,
-        insideCartouche,
-        insideLongGlyph,
-        adjacentLongGlyph,
-        precedingLongGlyph,
-      } = analysis;
-
-      switch (actionId) {
-        case "wrapCartouche":
-          wrapInCartouche(editor, from, to);
-          break;
-        case "unwrapCartouche":
-          if (insideCartouche) {
-            unwrapCartouche(
-              editor,
-              insideCartouche.wrapFrom,
-              insideCartouche.wrapTo
-            );
-          }
-          break;
-        case "wrapLongGlyph":
-          wrapInLongGlyph(
-            editor,
-            from,
-            to,
-            adjacentLongGlyph,
-            precedingLongGlyph?.glyphFrom ?? null
-          );
-          break;
-        case "unwrapLongGlyph":
-          if (insideLongGlyph) {
-            if (analysis.longGlyphTail) {
-              shrinkLongGlyphTail(
-                editor,
-                from,
-                insideLongGlyph.wrapTo
-              );
-            } else {
-              unwrapLongGlyph(
-                editor,
-                insideLongGlyph.wrapFrom,
-                insideLongGlyph.wrapTo
-              );
-            }
-          }
-          break;
-        case "stack":
-          joinWithJoiner(
-            editor,
-            from,
-            to,
-            STACKING_JOINER
-          );
-          break;
-        case "scale":
-          joinWithJoiner(
-            editor,
-            from,
-            to,
-            SCALING_JOINER
-          );
-          break;
-        case "join":
-          joinWithJoiner(
-            editor,
-            from,
-            to,
-            ZWJ
-          );
-          break;
-        case "unstack":
-        case "unscale":
-        case "unjoin":
-          removeJoiners(editor, from, to);
-          break;
-        case "convertToVerbatim":
-          convertToVerbatimAction(
-            editor,
-            from,
-            to
-          );
-          break;
-        case "convertToSP":
-          convertFromVerbatimAction(
-            editor,
-            from,
-            to
-          );
-          break;
-      }
+      performAction(editor, actionId, analysis);
     },
     [editor, analysis]
   );
@@ -2721,7 +2719,19 @@ export function SelectionMenu({
         selectionMenuPluginKey
       );
       if (meta?.executeAction) {
-        executeAction(meta.executeAction);
+        // Read analysis fresh from plugin state
+        // to avoid stale closure
+        const fresh =
+          selectionMenuPluginKey.getState(
+            editor.state
+          ) as SelectionMenuPluginState;
+        if (fresh.analysis) {
+          performAction(
+            editor,
+            meta.executeAction,
+            fresh.analysis
+          );
+        }
         return;
       }
 
@@ -2767,7 +2777,7 @@ export function SelectionMenu({
     return () => {
       editor.off("transaction", update);
     };
-  }, [editor, executeAction]);
+  }, [editor]);
 
   const handleVariantSelect = useCallback(
     (variation: number) => {

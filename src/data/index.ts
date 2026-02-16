@@ -12,6 +12,9 @@ export {
   hasVariations,
   getVariations,
   isLongGlyphWord,
+  isControlChar,
+  isJoiner,
+  isCartoucheChar,
 } from "./font-capabilities";
 export type {
   FontCapabilities,
@@ -32,9 +35,6 @@ export {
   COMBINING_TALLY_MARK,
   IDEOGRAPHIC_SPACE,
   ZWJ,
-  isControlChar,
-  isJoiner,
-  isCartoucheChar,
   controlCharToName,
 } from "./control-chars";
 

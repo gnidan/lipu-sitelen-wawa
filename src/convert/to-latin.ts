@@ -2,22 +2,12 @@ import {
   codepointToWord,
   isUcsurChar,
   isControlChar,
+  isVariationSelector,
   START_OF_CARTOUCHE,
   END_OF_CARTOUCHE,
-  VARIATION_SELECTOR_BASE,
   ZWJ,
   isNiArrowCp,
 } from "../data";
-
-const VARIATION_SELECTOR_END =
-  VARIATION_SELECTOR_BASE + 7;
-
-function isVariationSelector(cp: number): boolean {
-  return (
-    cp >= VARIATION_SELECTOR_BASE &&
-    cp <= VARIATION_SELECTOR_END
-  );
-}
 
 /**
  * Convert UCSUR sitelen pona text back to Latin

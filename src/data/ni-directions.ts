@@ -97,6 +97,18 @@ const BY_VERBATIM = new Map(
   NI_DIRECTIONS.map((d) => [d.verbatim, d])
 );
 
+// Accept reversed 2-char combos (e.g. "<^" as
+// well as "^<" for upper-left)
+for (const d of NI_DIRECTIONS) {
+  if (d.verbatim.length === 2) {
+    const rev =
+      d.verbatim[1] + d.verbatim[0];
+    if (!BY_VERBATIM.has(rev)) {
+      BY_VERBATIM.set(rev, d);
+    }
+  }
+}
+
 /** Lookup: arrow codepoint -> NiDirection */
 const BY_ARROW_CP = new Map(
   NI_DIRECTIONS.map((d) => [d.arrowCp, d])

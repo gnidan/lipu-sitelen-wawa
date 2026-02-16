@@ -113,6 +113,7 @@ h1 {
 }
 
 .toolbar-button {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   border: 1.5px solid rgba(0, 0, 0, 0.1);

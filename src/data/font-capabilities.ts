@@ -25,6 +25,22 @@ import {
   isVariationSelector,
 } from "./structural-map";
 import {
+  STACKING_JOINER,
+  SCALING_JOINER,
+  START_OF_LONG_GLYPH,
+  END_OF_LONG_GLYPH,
+  START_OF_REVERSE_LONG_GLYPH,
+  END_OF_REVERSE_LONG_GLYPH,
+  START_OF_CARTOUCHE,
+  END_OF_CARTOUCHE,
+  CARTOUCHE_EXTENSION,
+  MIDDLE_DOT,
+  COLON,
+  COMBINING_TALLY_MARK,
+  IDEOGRAPHIC_SPACE,
+  ZWJ,
+} from "./control-chars";
+import {
   words as rawWords,
 } from "./words";
 import type { WordEntry } from "./words";
@@ -228,4 +244,57 @@ export function isLongGlyphWord(
   word: string
 ): boolean {
   return currentFont.longGlyphWords.has(word);
+}
+
+// ── Effective control char predicates ─────────
+//
+// Raw control char sets in control-chars.ts use
+// raw UCSUR codepoints, but callers pass effective
+// (post-override) codepoints. Build effective sets
+// by mapping each raw control char through the
+// font's codepoint overrides.
+
+const RAW_CONTROL_CPS = [
+  STACKING_JOINER, SCALING_JOINER,
+  START_OF_LONG_GLYPH, END_OF_LONG_GLYPH,
+  START_OF_REVERSE_LONG_GLYPH,
+  END_OF_REVERSE_LONG_GLYPH,
+  START_OF_CARTOUCHE, END_OF_CARTOUCHE,
+  CARTOUCHE_EXTENSION,
+  MIDDLE_DOT, COLON, COMBINING_TALLY_MARK,
+  IDEOGRAPHIC_SPACE, ZWJ,
+];
+
+const effectiveControlChars = new Set(
+  RAW_CONTROL_CPS.map(mapCodepoint)
+);
+
+const effectiveJoiners = new Set(
+  [STACKING_JOINER, SCALING_JOINER, ZWJ]
+    .map(mapCodepoint)
+);
+
+const effectiveCartoucheChars = new Set(
+  [
+    START_OF_CARTOUCHE, END_OF_CARTOUCHE,
+    CARTOUCHE_EXTENSION,
+  ].map(mapCodepoint)
+);
+
+export function isControlChar(
+  cp: number
+): boolean {
+  return effectiveControlChars.has(cp);
+}
+
+export function isJoiner(
+  cp: number
+): boolean {
+  return effectiveJoiners.has(cp);
+}
+
+export function isCartoucheChar(
+  cp: number
+): boolean {
+  return effectiveCartoucheChars.has(cp);
 }

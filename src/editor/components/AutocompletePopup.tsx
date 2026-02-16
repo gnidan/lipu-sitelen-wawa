@@ -110,6 +110,10 @@ export function AutocompletePopup({
 }: AutocompletePopupProps) {
   const [state, setState] =
     useState<AutocompleteState | null>(null);
+  const [coords, setCoords] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -124,8 +128,25 @@ export function AutocompletePopup({
         pluginState.matches.length === 0
       ) {
         setState(null);
+        setCoords(null);
       } else {
         setState({ ...pluginState });
+        if (pluginState.range) {
+          try {
+            const c =
+              editor.view.coordsAtPos(
+                pluginState.range.from
+              );
+            setCoords({
+              left: c.left,
+              top: c.bottom,
+            });
+          } catch {
+            setCoords(null);
+          }
+        } else {
+          setCoords(null);
+        }
       }
     };
 
@@ -222,16 +243,16 @@ export function AutocompletePopup({
     }
     el.style.minWidth =
       lockedWidth.current + "px";
-  });
+  }, [state?.activeIndex, matchKey]);
 
   if (!state || state.matches.length === 0) {
     return null;
   }
 
-  const style: React.CSSProperties = state.coords
+  const style: React.CSSProperties = coords
     ? {
-        left: `${state.coords.left}px`,
-        top: `${state.coords.top + 4}px`,
+        left: `${coords.left}px`,
+        top: `${coords.top + 4}px`,
         position: "fixed",
       }
     : { display: "none" };

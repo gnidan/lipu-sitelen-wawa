@@ -159,19 +159,12 @@ export function fromVerbatim(text: string): string {
     i++;
 
     const cp = ch.codePointAt(0)!;
-    if (isLatinLetter(cp)) {
-      wordBuf += ch;
-      continue;
-    }
 
     // Direction char after "ni" → ni + arrow
-    // (e.g. "ni^" → ni + ↑)
-    if (
-      (ch === "<" || ch === "^" || ch === ">") &&
-      wordBuf.toLowerCase() === "ni"
-    ) {
-      // Back up one char so parseVerbatimDirection
-      // sees the direction from the start
+    // (e.g. "ni^" → ni + ↑, "niv" → ni + ↓)
+    // Must check before isLatinLetter since "v"
+    // is both a Latin letter and a direction.
+    if (wordBuf.toLowerCase() === "ni") {
       const parsed = parseVerbatimDirection(
         text, i - 1
       );
@@ -190,6 +183,11 @@ export function fromVerbatim(text: string): string {
         i += parsed.length - 1;
         continue;
       }
+    }
+
+    if (isLatinLetter(cp)) {
+      wordBuf += ch;
+      continue;
     }
 
     const ctrl = asciiToUcsurControl(ch);

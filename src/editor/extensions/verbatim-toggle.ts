@@ -342,19 +342,26 @@ export const VerbatimToggle = Extension.create({
                 st.active &&
                 st.lastBacktickTime > 0
               ) {
-                const tr = view.state.tr;
                 const { from } =
                   view.state.selection;
-                tr.delete(from - 1, from);
-                tr.setMeta(
-                  verbatimTogglePluginKey,
-                  {
-                    active: false,
-                    lastBacktickTime: 0,
-                    manualOverride: false,
-                  }
-                );
-                view.dispatch(tr);
+                if (
+                  from >= 1 &&
+                  view.state.doc.textBetween(
+                    from - 1, from
+                  ) === "`"
+                ) {
+                  const tr = view.state.tr;
+                  tr.delete(from - 1, from);
+                  tr.setMeta(
+                    verbatimTogglePluginKey,
+                    {
+                      active: false,
+                      lastBacktickTime: 0,
+                      manualOverride: false,
+                    }
+                  );
+                  view.dispatch(tr);
+                }
               }
               return true; // consume all repeats
             }
@@ -389,7 +396,14 @@ export const VerbatimToggle = Extension.create({
 
             if (isDouble) {
               // Delete previous backtick, exit
-              tr.delete(from - 1, from);
+              if (
+                from >= 1 &&
+                view.state.doc.textBetween(
+                  from - 1, from
+                ) === "`"
+              ) {
+                tr.delete(from - 1, from);
+              }
               tr.setMeta(
                 verbatimTogglePluginKey,
                 {
@@ -444,6 +458,14 @@ export const VerbatimToggle = Extension.create({
                 from,
                 from + text.length,
                 vt.create()
+              );
+              tr.setMeta(
+                verbatimTogglePluginKey,
+                {
+                  active: true,
+                  lastBacktickTime: 0,
+                  manualOverride: false,
+                }
               );
               view.dispatch(tr);
               return true;
