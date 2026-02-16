@@ -112,12 +112,15 @@ export const wordToCodepoint:
     )
   );
 
+// First entry per codepoint wins, so canonical
+// forms are preferred over synonyms.
+const _cpToWord: Record<number, string> = {};
+for (const [word, cp] of
+  Object.entries(wordToCodepoint)) {
+  if (!(cp in _cpToWord)) _cpToWord[cp] = word;
+}
 export const codepointToWord:
-  Record<number, string> = Object.fromEntries(
-    Object.entries(wordToCodepoint).map(
-      ([word, cp]) => [cp, word]
-    )
-  );
+  Record<number, string> = _cpToWord;
 
 // ── Effective words record ──────────────────────
 

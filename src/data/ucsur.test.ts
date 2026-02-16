@@ -37,20 +37,30 @@ describe("wordToCodepoint", () => {
 });
 
 describe("codepointToWord", () => {
-  it("is the correct reverse of wordToCodepoint", () => {
-    for (const [word, cp] of Object.entries(
-      wordToCodepoint
+  it("maps every codepoint to a valid word", () => {
+    for (const [cp, word] of Object.entries(
+      codepointToWord
     )) {
-      expect(codepointToWord[cp]).toBe(word);
+      expect(wordToCodepoint[word]).toBe(
+        Number(cp)
+      );
     }
   });
 
-  it("has the same number of entries", () => {
+  it("covers every unique codepoint", () => {
+    const uniqueCps = new Set(
+      Object.values(wordToCodepoint)
+    );
     expect(
       Object.keys(codepointToWord).length
-    ).toBe(
-      Object.keys(wordToCodepoint).length
-    );
+    ).toBe(uniqueCps.size);
+  });
+
+  it("prefers canonical form for synonyms", () => {
+    // ali is a synonym for ale; reverse map
+    // should return "ale"
+    const cp = wordToCodepoint["ale"];
+    expect(codepointToWord[cp]).toBe("ale");
   });
 });
 

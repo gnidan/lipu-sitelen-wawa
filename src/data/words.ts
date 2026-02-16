@@ -54,6 +54,10 @@ export const words: Record<string, WordEntry> = {
     "ale", 0xF1904, "core",
     "all, every, everything; 100"
   ),
+  "ali": w(
+    "ali", 0xF1904, "core",
+    "all, every, everything; 100 (= ale)"
+  ),
   "anpa": w(
     "anpa", 0xF1905, "core",
     "bottom, lower, humble, to bow"

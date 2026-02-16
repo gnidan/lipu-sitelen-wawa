@@ -56,7 +56,7 @@ describe("words", () => {
   describe("wordsByCategory", () => {
     it("returns many core words", () => {
       const core = wordsByCategory("core");
-      expect(core.length).toBe(122);
+      expect(core.length).toBe(123);
     });
 
     it("returns common words", () => {

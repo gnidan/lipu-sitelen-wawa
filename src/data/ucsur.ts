@@ -9,6 +9,7 @@ export const wordToCodepoint: Record<string, number> = {
   "ala": 0xF1902,
   "alasa": 0xF1903,
   "ale": 0xF1904,
+  "ali": 0xF1904,  // synonym for ale
   "anpa": 0xF1905,
   "ante": 0xF1906,
   "anu": 0xF1907,
@@ -154,10 +155,16 @@ export const wordToCodepoint: Record<string, number> = {
 const UCSUR_RANGE_START = 0xF1900;
 const UCSUR_RANGE_END = 0xF19FF;
 
-export const codepointToWord: Record<number, string> =
-  Object.fromEntries(
-    Object.entries(wordToCodepoint).map(([w, cp]) => [cp, w])
-  );
+// First entry per codepoint wins, so canonical
+// forms (e.g. "ale") are preferred over synonyms
+// (e.g. "ali").
+const _cpToWord: Record<number, string> = {};
+for (const [w, cp] of
+  Object.entries(wordToCodepoint)) {
+  if (!(cp in _cpToWord)) _cpToWord[cp] = w;
+}
+export const codepointToWord:
+  Record<number, string> = _cpToWord;
 
 export function codepointToChar(cp: number): string {
   return String.fromCodePoint(cp);
