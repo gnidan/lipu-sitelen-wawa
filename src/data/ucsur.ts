@@ -146,6 +146,9 @@ export const wordToCodepoint: Record<string, number> = {
   "apeja": 0xF198A,
   "majuna": 0xF198B,
   "linluwi": 0xF198C,
+  // Punctuation words (non-UCSUR codepoints)
+  "te": 0x300C,
+  "to": 0x300D,
 };
 
 const UCSUR_RANGE_START = 0xF1900;
@@ -160,17 +163,29 @@ export function codepointToChar(cp: number): string {
   return String.fromCodePoint(cp);
 }
 
+/**
+ * Non-UCSUR codepoints that map to toki pona words
+ * (e.g. CJK corner brackets for te/to).
+ */
+const SPECIAL_WORD_CPS = new Set(
+  Object.values(wordToCodepoint).filter(
+    (cp) => cp < UCSUR_RANGE_START ||
+      cp > UCSUR_RANGE_END
+  )
+);
+
 export function charToCodepoint(
   char: string
 ): number | undefined {
   const cp = char.codePointAt(0);
+  if (cp === undefined) return undefined;
   if (
-    cp !== undefined &&
     cp >= UCSUR_RANGE_START &&
     cp <= UCSUR_RANGE_END
   ) {
     return cp;
   }
+  if (SPECIAL_WORD_CPS.has(cp)) return cp;
   return undefined;
 }
 

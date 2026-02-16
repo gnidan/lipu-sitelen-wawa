@@ -28,153 +28,224 @@ function glyphVar(
 export function HelpPanel() {
   return (
     <div className="help-panel">
-      {/* Structural operations */}
       <div className="help-panel__section">
-        <div className="help-grid">
-          <div className="help-grid__cell">
-            <span
-              className="help-grid__before"
-            >
-              <kbd className="keycap">[</kbd>
-              <SP>jan pona</SP>
-              <kbd className="keycap">]</kbd>
-            </span>
-            <span
-              className="help-grid__arrow"
-            >
-              {"\u2192"}
-            </span>
-            <span
-              className="help-grid__after"
-            >
-              <SP>[jan=pona]</SP>
-            </span>
-          </div>
-          <div className="help-grid__cell">
-            <span
-              className="help-grid__before"
-            >
-              <SP>tawa</SP>
-              <kbd className="keycap">(</kbd>
-              <SP>pona</SP>
-              <kbd className="keycap">)</kbd>
-            </span>
-            <span
-              className="help-grid__arrow"
-            >
-              {"\u2192"}
-            </span>
-            <span
-              className="help-grid__after"
-            >
-              <SP>tawa(pona)</SP>
-            </span>
-          </div>
-          <div className="help-grid__cell">
-            <span
-              className="help-grid__before"
-            >
-              <SP>toki</SP>
-              <kbd className="keycap">-</kbd>
-              <SP>pona</SP>
-            </span>
-            <span
-              className="help-grid__arrow"
-            >
-              {"\u2192"}
-            </span>
-            <span
-              className="help-grid__after"
-            >
-              <SP>toki-pona</SP>
-            </span>
-          </div>
-          <div className="help-grid__cell">
-            <span
-              className="help-grid__before"
-            >
-              <SP>toki</SP>
-              <kbd className="keycap">+</kbd>
-              <SP>pona</SP>
-            </span>
-            <span
-              className="help-grid__arrow"
-            >
-              {"\u2192"}
-            </span>
-            <span
-              className="help-grid__after"
-            >
-              <SP>toki+pona</SP>
-            </span>
-          </div>
-          <div className="help-grid__cell">
-            <span
-              className="help-grid__before"
-            >
+        <div className="help-panel__columns">
+          {/* Column 1 — Input */}
+          <div className="help-grid">
+            <div className="help-grid__cell">
               <span
-                className={
-                  "help-grid__glyph"
-                }
+                className="help-grid__before"
               >
-                {glyphChar("jaki")}
+                <kbd>t</kbd><kbd>o</kbd><kbd>k</kbd><kbd>i</kbd>
+                <kbd>
+                  {"\u23B5"}
+                </kbd>
               </span>
-              <kbd className="keycap">1</kbd>
               <span
-                className="keycap-range"
+                className="help-grid__arrow"
               >
-                {"\u2026"}
+                {"\u2192"}
               </span>
-              <kbd className="keycap">8</kbd>
-            </span>
-            <span
-              className="help-grid__arrow"
-            >
-              {"\u2192"}
-            </span>
-            <span
-              className="help-grid__after"
-            >
-              {[1, 2, 3].map((n) => (
+              <span
+                className="help-grid__after"
+              >
+                <SP>toki</SP>
+              </span>
+            </div>
+            <div className="help-grid__cell">
+              <span
+                className="help-grid__before"
+              >
+                <kbd>t</kbd><kbd>o</kbd><kbd>k</kbd><kbd>i</kbd>
+                <kbd>
+                  Esc
+                </kbd>
+              </span>
+              <span
+                className="help-grid__arrow"
+              >
+                {"\u2192"}
+              </span>
+              <span
+                className="help-grid__after"
+              >
+                <span className={
+                  "help-grid__latin "
+                  + "help-grid__latin--muted"
+                }>
+                  toki
+                </span>
+              </span>
+            </div>
+            <div className="help-grid__cell">
+              <span
+                className="help-grid__before"
+              >
+                <kbd>
+                  `
+                </kbd>
+              </span>
+              <span
+                className="help-grid__arrow"
+              >
+                {"\u2192"}
+              </span>
+              <span
+                className="help-grid__after"
+              >
+                <SP>sitelen+pona ala</SP>
+              </span>
+            </div>
+          </div>
+          {/* Column 2 — Structure */}
+          <div className="help-grid">
+            <div className="help-grid__cell">
+              <span
+                className="help-grid__before"
+              >
+                <kbd>[</kbd>
+                <SP>jan pona</SP>
+                <kbd>]</kbd>
+              </span>
+              <span
+                className="help-grid__arrow"
+              >
+                {"\u2192"}
+              </span>
+              <span
+                className="help-grid__after"
+              >
+                <SP>[jan=pona]</SP>
+              </span>
+            </div>
+            <div className="help-grid__cell">
+              <span
+                className="help-grid__before"
+              >
+                <SP>tawa</SP>
+                <kbd>(</kbd>
+                <SP>pona</SP>
+                <kbd>)</kbd>
+              </span>
+              <span
+                className="help-grid__arrow"
+              >
+                {"\u2192"}
+              </span>
+              <span
+                className="help-grid__after"
+              >
+                <SP>tawa(pona)</SP>
+              </span>
+            </div>
+            <div className="help-grid__cell">
+              <span
+                className="help-grid__before"
+              >
                 <span
-                  key={n}
                   className={
                     "help-grid__glyph"
                   }
                 >
-                  {glyphVar("jaki", n)}
+                  {glyphChar("jaki")}
                 </span>
-              ))}
-            </span>
-          </div>
-          <div className="help-grid__cell">
-            <span
-              className="help-grid__before"
-            >
-              <span
-                className={
-                  "help-grid__glyph"
-                }
-              >
-                {glyphChar("ni")}
+                <kbd>1</kbd>
+                <span
+                  className="keycap-range"
+                >
+                  {"\u2026"}
+                </span>
+                <kbd>8</kbd>
               </span>
-              <kbd className="keycap">&</kbd>
-              <kbd className="keycap">^&lt;v&gt;</kbd>
-            </span>
-            <span
-              className="help-grid__arrow"
-            >
-              {"\u2192"}
-            </span>
-            <span
-              className="help-grid__after"
-            >
-              {["ni&<", "ni&^",
-                "ni&>", "ni&v",
-              ].map((v) => (
-                <SP key={v}>{v}</SP>
-              ))}
-            </span>
+              <span
+                className="help-grid__arrow"
+              >
+                {"\u2192"}
+              </span>
+              <span
+                className="help-grid__after"
+              >
+                {[1, 2, 3].map((n) => (
+                  <span
+                    key={n}
+                    className={
+                      "help-grid__glyph"
+                    }
+                  >
+                    {glyphVar("jaki", n)}
+                  </span>
+                ))}
+              </span>
+            </div>
+          </div>
+          {/* Column 3 — Modifiers */}
+          <div className="help-grid">
+            <div className="help-grid__cell">
+              <span
+                className="help-grid__before"
+              >
+                <SP>toki</SP>
+                <kbd>-</kbd>
+                <SP>pona</SP>
+              </span>
+              <span
+                className="help-grid__arrow"
+              >
+                {"\u2192"}
+              </span>
+              <span
+                className="help-grid__after"
+              >
+                <SP>toki-pona</SP>
+              </span>
+            </div>
+            <div className="help-grid__cell">
+              <span
+                className="help-grid__before"
+              >
+                <SP>toki</SP>
+                <kbd>+</kbd>
+                <SP>pona</SP>
+              </span>
+              <span
+                className="help-grid__arrow"
+              >
+                {"\u2192"}
+              </span>
+              <span
+                className="help-grid__after"
+              >
+                <SP>toki+pona</SP>
+              </span>
+            </div>
+            <div className="help-grid__cell">
+              <span
+                className="help-grid__before"
+              >
+                <span
+                  className={
+                    "help-grid__glyph"
+                  }
+                >
+                  {glyphChar("ni")}
+                </span>
+                <kbd>
+                  {"^<"}
+                </kbd>
+              </span>
+              <span
+                className="help-grid__arrow"
+              >
+                {"\u2192"}
+              </span>
+              <span
+                className="help-grid__after"
+              >
+                {["ni^<"].map((v) => (
+                  <SP key={v}>{v}</SP>
+                ))}
+              </span>
+            </div>
           </div>
         </div>
       </div>

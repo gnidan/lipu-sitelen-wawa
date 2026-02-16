@@ -2,22 +2,12 @@ import {
   codepointToWord,
   isUcsurChar,
   isControlChar,
+  isVariationSelector,
   START_OF_CARTOUCHE,
   END_OF_CARTOUCHE,
-  VARIATION_SELECTOR_BASE,
   ZWJ,
   isNiArrowCp,
 } from "../data";
-
-const VARIATION_SELECTOR_END =
-  VARIATION_SELECTOR_BASE + 7;
-
-function isVariationSelector(cp: number): boolean {
-  return (
-    cp >= VARIATION_SELECTOR_BASE &&
-    cp <= VARIATION_SELECTOR_END
-  );
-}
 
 /**
  * Convert UCSUR sitelen pona text back to Latin
@@ -38,7 +28,7 @@ export function toLatin(input: string): string {
   let needsSpace = false;
   let inCartouche = false;
   let cartoucheFirst = false;
-  let skipNextDirectionChars = false;
+  let skipNextArrow = false;
 
   for (const char of input) {
     const cp = char.codePointAt(0)!;
@@ -47,14 +37,16 @@ export function toLatin(input: string): string {
       continue;
     }
 
-    if (cp === ZWJ) {
-      skipNextDirectionChars = true;
-      continue;
-    }
-
-    if (skipNextDirectionChars) {
-      if (isNiArrowCp(cp)) continue;
-      skipNextDirectionChars = false;
+    // Skip arrow chars that follow "ni" (or
+    // legacy "ni" + ZWJ). The direction is
+    // implicit in the glyph, not in Latin.
+    if (skipNextArrow) {
+      if (cp === ZWJ) continue;
+      if (isNiArrowCp(cp)) {
+        skipNextArrow = false;
+        continue;
+      }
+      skipNextArrow = false;
     }
 
     if (cp === START_OF_CARTOUCHE) {
@@ -80,6 +72,7 @@ export function toLatin(input: string): string {
     if (isUcsurChar(char)) {
       const word = codepointToWord[cp];
       if (word) {
+        if (word === "ni") skipNextArrow = true;
         if (inCartouche) {
           // Abbreviate: first letter only
           const letter = word[0];

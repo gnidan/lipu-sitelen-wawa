@@ -3,10 +3,12 @@ import {
   VARIATION_SELECTOR_BASE,
   variationIndexToSelector,
   glyphVariations,
-  hasVariations,
-  getVariations,
   applyVariation,
 } from "./variations";
+import {
+  hasVariations,
+  getVariations,
+} from "./font-capabilities";
 
 describe("variations", () => {
   describe("hasVariations", () => {

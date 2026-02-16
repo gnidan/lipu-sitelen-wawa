@@ -21,6 +21,8 @@ import {
   getVariations,
   applyVariation,
   isVariationSelector,
+  isLongGlyphWord,
+  VARIATION_SELECTOR_BASE,
   START_OF_CARTOUCHE,
   END_OF_CARTOUCHE,
   CARTOUCHE_EXTENSION,
@@ -30,13 +32,11 @@ import {
   SCALING_JOINER,
   ZWJ,
   isNiArrowCp,
+  niDirectionByArrowCp,
   niDirectionByIndex,
-  niZwjString,
+  niDirString,
   parseVerbatimDirection,
 } from "../../data";
-import {
-  VARIATION_SELECTOR_BASE,
-} from "../../data/variations";
 import {
   codepoints,
   isWordGlyph,
@@ -53,30 +53,6 @@ export const selectionMenuPluginKey = new PluginKey(
   "selectionMenu"
 );
 
-// Words whose glyphs have a long form in nasin
-// nanpa v4. The first glyph in a long glyph
-// sequence is the container that stretches.
-// (la is reversed: content comes before it)
-const LONG_GLYPH_WORDS = new Set([
-  "a",
-  "alasa",
-  "anu",
-  "awen",
-  "kama",
-  "ken",
-  "kepeken",
-  "la",
-  "lon",
-  "nanpa",
-  "open",
-  "pi",
-  "pini",
-  "sona",
-  "tawa",
-  "wile",
-  "n",
-]);
-
 // ── Selection analysis ──────────────────────────
 
 interface WrapInfo {
@@ -88,6 +64,11 @@ interface WrapInfo {
 interface AdjacentLongGlyph {
   side: "before" | "after";
   markerPos: number; // doc position of the marker
+  // Full range of the adjacent expression
+  // (container glyph through END/START marker),
+  // used for preview rendering
+  wrapFrom?: number;
+  wrapTo?: number;
 }
 
 interface SelectionAnalysis {
@@ -97,6 +78,8 @@ interface SelectionAnalysis {
 
   singleGlyphWithVariants: {
     word: string;
+    /** Currently active variant index (0 = base) */
+    currentIndex: number;
   } | null;
   containsUcsur: boolean;
   containsLatin: boolean;
@@ -106,6 +89,7 @@ interface SelectionAnalysis {
   secondGlyphWord: string | null;
   hasStackingJoiner: boolean;
   hasScalingJoiner: boolean;
+  hasZwjJoiner: boolean;
   hasLongGlyphMarkers: boolean;
   hasCartoucheMarkers: boolean;
 
@@ -125,6 +109,31 @@ interface SelectionAnalysis {
   // the unwrap label when selection is partial
   cartoucheContentPreview: string | null;
 
+  // Verbatim preview of the full long glyph
+  // content (from wrapFrom to wrapTo), used for
+  // the unwrap label when selection is partial
+  longGlyphContentPreview: string | null;
+
+  // True when the selection is at the tail of
+  // a long glyph (content before it remains
+  // inside). Unwrap shrinks instead of removing.
+  longGlyphTail: boolean;
+
+  // Doc position where the container glyph
+  // starts (for surrounding long glyph)
+  longGlyphContainerFrom: number | null;
+
+  // Verbatim preview of the head portion when
+  // tail-shrinking: "container(remaining)"
+  longGlyphTailHeadPreview: string | null;
+
+  // Verbatim preview of an adjacent long glyph
+  // expression (container + parens + inner), used
+  // for the wrap preview when extending an
+  // existing long glyph
+  adjacentLongGlyphPreview: string | null;
+
+  isAllVerbatim: boolean;
   verbatimPreview: string | null;
   sitelenPonaPreview: string | null;
 }
@@ -138,8 +147,10 @@ export type ActionId =
   | "unwrapLongGlyph"
   | "stack"
   | "scale"
+  | "join"
   | "unstack"
   | "unscale"
+  | "unjoin"
   | "convertToVerbatim"
   | "convertToSP";
 
@@ -147,6 +158,7 @@ export interface SelectionMenuPluginState {
   analysis: SelectionAnalysis | null;
   actions: ActionId[];
   activeActionIndex: number;
+  activeVariantIndex: number;
 }
 
 const ACTION_HINTS: Record<ActionId, string> = {
@@ -156,8 +168,10 @@ const ACTION_HINTS: Record<ActionId, string> = {
   unwrapLongGlyph: "(",
   stack: "-",
   scale: "+",
+  join: "&",
   unstack: "-",
   unscale: "+",
+  unjoin: "&",
   convertToVerbatim: "\u21E5",
   convertToSP: "\u21E5",
 };
@@ -383,13 +397,14 @@ function isConnectorCp(cp: number): boolean {
   return (
     cp === CARTOUCHE_EXTENSION ||
     cp === STACKING_JOINER ||
-    cp === SCALING_JOINER
+    cp === SCALING_JOINER ||
+    cp === ZWJ
   );
 }
 
 /**
  * Skip backward past glyph modifiers (VS or
- * ZWJ+arrow) in a codepoint array. Returns the
+ * ni arrow) in a codepoint array. Returns the
  * adjusted index pointing at the base glyph, or
  * the original index if no modifiers found.
  */
@@ -401,12 +416,8 @@ function skipGlyphModsBackward(
   if (isVariationSelector(cps[k][0])) {
     return k - 1;
   }
-  if (
-    isNiArrowCp(cps[k][0]) &&
-    k >= 1 &&
-    cps[k - 1][0] === ZWJ
-  ) {
-    return k - 2;
+  if (isNiArrowCp(cps[k][0])) {
+    return k - 1;
   }
   return k;
 }
@@ -459,26 +470,15 @@ function expandSelectionRange(
     const [cp] = cps[si];
     const prevCp = cps[si - 1][0];
 
-    // Arrow codepoint preceded by ZWJ: expand
-    // backward past ZWJ to include the ni glyph
-    if (isNiArrowCp(cp) && prevCp === ZWJ) {
-      let i = si - 1; // at ZWJ
-      if (i >= 0 && cps[i][0] === ZWJ) i--;
-      if (i >= 0 && isWordGlyph(cps[i][0])) {
-        si = i;
-        moved = true;
-      }
-    } else if (
-      cp === ZWJ &&
-      si + 1 < cps.length &&
-      isNiArrowCp(cps[si + 1][0])
+    // Arrow codepoint: expand backward to include
+    // the preceding word glyph (ni + arrow)
+    if (
+      isNiArrowCp(cp) &&
+      si > 0 &&
+      isWordGlyph(prevCp)
     ) {
-      // ZWJ part of ni direction sequence
-      let i = si - 1;
-      if (i >= 0 && isWordGlyph(cps[i][0])) {
-        si = i;
-        moved = true;
-      }
+      si = si - 1;
+      moved = true;
     } else if (
       isConnectorCp(cp) ||
       isVariationSelector(cp) ||
@@ -513,22 +513,22 @@ function expandSelectionRange(
     if (isVariationSelector(cp)) {
       ei++;
       moved = true;
+    } else if (
+      isNiArrowCp(cp) &&
+      ei > 0 && isWordGlyph(lastCp)
+    ) {
+      // Arrow directly after word glyph (ni+arrow)
+      ei++;
+      moved = true;
     } else if (cp === ZWJ) {
       ei++; // skip ZWJ
-      // Also skip following arrow codepoint
+      // Also skip following word glyph
       if (
         ei < cps.length &&
-        isNiArrowCp(cps[ei][0])
+        isWordGlyph(cps[ei][0])
       ) {
         ei++;
       }
-      moved = true;
-    } else if (
-      isNiArrowCp(cp) &&
-      ei > 0 && lastCp === ZWJ
-    ) {
-      // Arrow after ZWJ (selection split mid-seq)
-      ei++;
       moved = true;
     } else if (
       isConnectorCp(cp) || isConnectorCp(lastCp)
@@ -576,10 +576,15 @@ function expandSelectionRange(
   }
 
   // Expand backward: if codepoint before si is
-  // an END marker, include preceding structure
+  // an END marker, include preceding structure.
+  // Only do this when si starts at a structural
+  // char — a standalone word glyph adjacent to a
+  // closing paren should NOT absorb the structure.
   moved = true;
   while (moved && si > 0) {
     moved = false;
+    const atSi = cps[si][0];
+    if (isWordGlyph(atSi)) break;
     const prev = cps[si - 1][0];
     if (
       prev === END_OF_LONG_GLYPH ||
@@ -641,6 +646,18 @@ function expandSelectionRange(
       if (cps[ei][0] === startCp) depth++;
       ei++;
     }
+    // Unmatched ENDs → for long glyph, strip
+    // trailing END markers before expanding
+    // backward (allows tail-shrink behavior)
+    if (startCp === START_OF_LONG_GLYPH) {
+      while (
+        depth < 0 && ei > si &&
+        cps[ei - 1][0] === endCp
+      ) {
+        ei--;
+        depth++;
+      }
+    }
     // Unmatched ENDs → expand backward
     while (depth < 0 && si > 0) {
       si--;
@@ -695,6 +712,7 @@ function analyzeSelection(
   // Single glyph with variants check
   let singleGlyphWithVariants: {
     word: string;
+    currentIndex: number;
   } | null = null;
   {
     const cp = text.codePointAt(0);
@@ -704,31 +722,33 @@ function analyzeSelection(
     ) {
       const charLen = cp > 0xffff ? 2 : 1;
       let end = charLen;
+      let curIdx = 0;
       if (end < text.length) {
         const nextCp = text.codePointAt(end);
         if (
           nextCp !== undefined &&
           isVariationSelector(nextCp)
         ) {
+          curIdx = nextCp -
+            VARIATION_SELECTOR_BASE + 1;
           end += 1;
-        } else if (nextCp === ZWJ) {
-          end += 1; // ZWJ is BMP, 1 char unit
-          // Check for arrow codepoint
-          if (end < text.length) {
-            const arrCp = text.codePointAt(end);
-            if (
-              arrCp !== undefined &&
-              isNiArrowCp(arrCp)
-            ) {
-              end += 1; // arrows are BMP
-            }
-          }
+        } else if (
+          nextCp !== undefined &&
+          isNiArrowCp(nextCp)
+        ) {
+          const dir =
+            niDirectionByArrowCp(nextCp);
+          if (dir) curIdx = dir.index;
+          end += 1; // arrows are BMP
         }
       }
       if (end === text.length) {
         const word = codepointToWord[cp];
         if (word && hasVariations(word)) {
-          singleGlyphWithVariants = { word };
+          singleGlyphWithVariants = {
+            word,
+            currentIndex: curIdx,
+          };
         }
       }
     }
@@ -743,6 +763,7 @@ function analyzeSelection(
   let secondGlyphWord: string | null = null;
   let hasStackingJoiner = false;
   let hasScalingJoiner = false;
+  let hasZwjJoiner = false;
   let hasLongGlyphMarkers = false;
   let hasCartoucheMarkers = false;
 
@@ -769,6 +790,9 @@ function analyzeSelection(
     }
     if (cp === SCALING_JOINER) {
       hasScalingJoiner = true;
+    }
+    if (cp === ZWJ) {
+      hasZwjJoiner = true;
     }
     if (
       cp === START_OF_LONG_GLYPH ||
@@ -822,6 +846,49 @@ function analyzeSelection(
       }
     }
 
+    // Find full range of adjacent long glyph
+    // (for preview): scan backward from END
+    // to matching START, then container glyph
+    if (
+      adjacentLongGlyph?.side === "before"
+    ) {
+      let depth = 0;
+      let startIdx = -1;
+      for (
+        let i = cpsBefore.length - 1;
+        i >= 0;
+        i--
+      ) {
+        const [cp] = cpsBefore[i];
+        if (cp === END_OF_LONG_GLYPH) depth++;
+        if (cp === START_OF_LONG_GLYPH) {
+          depth--;
+          if (depth === 0) {
+            startIdx = i;
+            break;
+          }
+        }
+      }
+      if (startIdx >= 0) {
+        let ci = skipGlyphModsBackward(
+          cpsBefore, startIdx - 1
+        );
+        if (
+          ci >= 0 &&
+          isWordGlyph(cpsBefore[ci][0])
+        ) {
+          const endLen =
+            END_OF_LONG_GLYPH > 0xffff
+              ? 2 : 1;
+          adjacentLongGlyph.wrapFrom =
+            blockStart + cpsBefore[ci][1];
+          adjacentLongGlyph.wrapTo =
+            adjacentLongGlyph.markerPos +
+            endLen;
+        }
+      }
+    }
+
     // Check glyph immediately before selection
     // (skip trailing VS or ZWJ+arrow)
     let idx = skipGlyphModsBackward(
@@ -831,7 +898,7 @@ function analyzeSelection(
       const [cp, off] = cpsBefore[idx];
       if (isWordGlyph(cp)) {
         const w = codepointToWord[cp];
-        if (w && LONG_GLYPH_WORDS.has(w)) {
+        if (w && isLongGlyphWord(w)) {
           precedingLongGlyph = {
             word: w,
             glyphFrom: blockStart + off,
@@ -975,6 +1042,8 @@ function analyzeSelection(
   // fall back to the document before wrapFrom.
   let longGlyphContainerWord: string | null =
     null;
+  let longGlyphContainerFrom: number | null =
+    null;
   if (insideLongGlyph) {
     if (insideLongGlyph.kind === "selected") {
       // Scan selected text for the last word
@@ -1010,9 +1079,29 @@ function analyzeSelection(
         if (ki >= 0 && isWordGlyph(cps[ki][0])) {
           longGlyphContainerWord =
             codepointToWord[cps[ki][0]] ?? null;
+          longGlyphContainerFrom =
+            bs + cps[ki][1];
         }
       }
     }
+  }
+
+  // Check if all text is verbatim-marked
+  const verbatimType =
+    state.schema.marks.verbatim;
+  let isAllVerbatim = false;
+  if (verbatimType) {
+    isAllVerbatim = true;
+    state.doc.nodesBetween(from, to,
+      (node) => {
+        if (
+          node.isText &&
+          !verbatimType.isInSet(node.marks)
+        ) {
+          isAllVerbatim = false;
+        }
+      }
+    );
   }
 
   // Conversion previews (use "\n" as block
@@ -1042,6 +1131,67 @@ function analyzeSelection(
       toVerbatim(cartText);
   }
 
+  // For unwrap long glyph preview: use the full
+  // long glyph content (from wrapFrom to wrapTo)
+  let longGlyphContentPreview: string | null =
+    null;
+  if (insideLongGlyph) {
+    const lgText = state.doc.textBetween(
+      insideLongGlyph.wrapFrom,
+      insideLongGlyph.wrapTo,
+      "\n"
+    );
+    longGlyphContentPreview =
+      toVerbatim(lgText);
+  }
+
+  // Detect tail selection: selected content is
+  // at the end of a surrounding long glyph,
+  // with remaining content before it
+  const endLen =
+    END_OF_LONG_GLYPH > 0xffff ? 2 : 1;
+  const startLen =
+    START_OF_LONG_GLYPH > 0xffff ? 2 : 1;
+  const longGlyphTail = !!(
+    insideLongGlyph?.kind === "surrounding" &&
+    to === insideLongGlyph.wrapTo - endLen &&
+    from > insideLongGlyph.wrapFrom + startLen
+  );
+
+  let longGlyphTailHeadPreview: string | null =
+    null;
+  if (
+    longGlyphTail &&
+    longGlyphContainerFrom !== null &&
+    insideLongGlyph
+  ) {
+    const headText = state.doc.textBetween(
+      longGlyphContainerFrom, from
+    );
+    const endChar =
+      String.fromCodePoint(END_OF_LONG_GLYPH);
+    longGlyphTailHeadPreview =
+      toVerbatim(headText + endChar);
+  }
+
+  // For wrap long glyph preview when extending
+  // an adjacent expression: verbatim of the full
+  // adjacent expression (container + parens)
+  let adjacentLongGlyphPreview: string | null =
+    null;
+  if (
+    adjacentLongGlyph?.wrapFrom !== undefined &&
+    adjacentLongGlyph?.wrapTo !== undefined
+  ) {
+    const adjText = state.doc.textBetween(
+      adjacentLongGlyph.wrapFrom,
+      adjacentLongGlyph.wrapTo,
+      "\n"
+    );
+    adjacentLongGlyphPreview =
+      toVerbatim(adjText);
+  }
+
   return {
     text,
     from,
@@ -1055,6 +1205,7 @@ function analyzeSelection(
     secondGlyphWord,
     hasStackingJoiner,
     hasScalingJoiner,
+    hasZwjJoiner,
     hasLongGlyphMarkers,
     hasCartoucheMarkers,
     insideCartouche,
@@ -1062,7 +1213,13 @@ function analyzeSelection(
     adjacentLongGlyph,
     precedingLongGlyph,
     longGlyphContainerWord,
+    longGlyphContainerFrom,
     cartoucheContentPreview,
+    longGlyphContentPreview,
+    longGlyphTail,
+    longGlyphTailHeadPreview,
+    adjacentLongGlyphPreview,
+    isAllVerbatim,
     verbatimPreview,
     sitelenPonaPreview,
   };
@@ -1073,6 +1230,16 @@ function analyzeSelection(
 function getVisibleActions(
   analysis: SelectionAnalysis
 ): ActionId[] {
+  if (analysis.isAllVerbatim) {
+    if (
+      analysis.containsLatin &&
+      analysis.sitelenPonaPreview !== null
+    ) {
+      return ["convertToSP"];
+    }
+    return [];
+  }
+
   const actions: ActionId[] = [];
   const {
     containsUcsur,
@@ -1082,6 +1249,7 @@ function getVisibleActions(
     firstGlyphWord,
     hasStackingJoiner,
     hasScalingJoiner,
+    hasZwjJoiner,
     hasLongGlyphMarkers,
     hasCartoucheMarkers,
     insideCartouche,
@@ -1109,7 +1277,7 @@ function getVisibleActions(
     insideCartouche !== null;
   const firstGlyphHasLongForm =
     firstGlyphWord !== null &&
-    LONG_GLYPH_WORDS.has(firstGlyphWord);
+    isLongGlyphWord(firstGlyphWord);
   const showWrapLongGlyph =
     !insideLongGlyph &&
     containsUcsur &&
@@ -1134,10 +1302,17 @@ function getVisibleActions(
     isSingleParagraph &&
     !hasScalingJoiner &&
     !spansBoundary;
+  const showJoin =
+    glyphCount === 2 &&
+    isSingleParagraph &&
+    !hasZwjJoiner &&
+    !spansBoundary;
   const showUnstack =
     glyphCount === 2 && hasStackingJoiner;
   const showUnscale =
     glyphCount === 2 && hasScalingJoiner;
+  const showUnjoin =
+    glyphCount === 2 && hasZwjJoiner;
   const showConvertToVerbatim =
     verbatimPreview !== null;
   const showConvertToSP =
@@ -1157,8 +1332,10 @@ function getVisibleActions(
   }
   if (showStack) actions.push("stack");
   if (showScale) actions.push("scale");
+  if (showJoin) actions.push("join");
   if (showUnstack) actions.push("unstack");
   if (showUnscale) actions.push("unscale");
+  if (showUnjoin) actions.push("unjoin");
   if (showConvertToVerbatim) {
     actions.push("convertToVerbatim");
   }
@@ -1187,6 +1364,7 @@ export function createSelectionMenuPlugin() {
     analysis: null,
     actions: [],
     activeActionIndex: 0,
+    activeVariantIndex: 0,
   };
 
   return new Plugin<SelectionMenuPluginState>({
@@ -1206,17 +1384,20 @@ export function createSelectionMenuPlugin() {
           return emptyState;
         }
 
-        // Navigate active action index
+        // Navigate: update indices
         if (
           meta !== undefined &&
           typeof meta === "object" &&
-          "activeActionIndex" in meta &&
-          !("executeAction" in meta)
+          "navigate" in meta
         ) {
           return {
             ...prev,
             activeActionIndex:
-              meta.activeActionIndex,
+              meta.activeActionIndex ??
+                prev.activeActionIndex,
+            activeVariantIndex:
+              meta.activeVariantIndex ??
+                prev.activeVariantIndex,
           };
         }
 
@@ -1251,10 +1432,19 @@ export function createSelectionMenuPlugin() {
             meta as SelectionAnalysis;
           const actions =
             getVisibleActions(analysis);
+          const hasV =
+            analysis.singleGlyphWithVariants
+              !== null;
+          const varIdx = hasV
+            ? (analysis
+                .singleGlyphWithVariants!
+                .currentIndex || 1)
+            : 0;
           return {
             analysis,
             actions,
-            activeActionIndex: 0,
+            activeActionIndex: hasV ? -1 : 0,
+            activeVariantIndex: varIdx,
           };
         }
 
@@ -1266,19 +1456,29 @@ export function createSelectionMenuPlugin() {
         }
         const actions =
           getVisibleActions(analysis);
-        const idx = arraysEqual(
+        const hasV =
+          analysis.singleGlyphWithVariants
+            !== null;
+        const sameActions = arraysEqual(
           actions,
           prev.actions
-        )
+        );
+        const idx = sameActions
           ? Math.min(
               prev.activeActionIndex,
               Math.max(actions.length - 1, 0)
             )
+          : hasV ? -1 : 0;
+        const varIdx = hasV
+          ? (analysis
+              .singleGlyphWithVariants!
+              .currentIndex || 1)
           : 0;
         return {
           analysis,
           actions,
           activeActionIndex: idx,
+          activeVariantIndex: varIdx,
         };
       },
     },
@@ -1301,47 +1501,56 @@ export function createSelectionMenuPlugin() {
           return true;
         }
 
-        // Digit keys: apply variant when single
-        // glyph with variants is selected
-        if (st.analysis.singleGlyphWithVariants) {
+        const hasVariants =
+          st.analysis.singleGlyphWithVariants
+            !== null;
+        const variations = hasVariants
+          ? getVariations(
+              st.analysis
+                .singleGlyphWithVariants!.word
+            )
+          : [];
+        const onVariantRow =
+          hasVariants &&
+          st.activeActionIndex === -1;
+
+        // Total navigable rows:
+        // variant row (-1) + action rows (0..N-1)
+        const totalRows =
+          (hasVariants ? 1 : 0) +
+          st.actions.length;
+        const minRow = hasVariants ? -1 : 0;
+
+        // Digit keys: apply variant directly
+        if (hasVariants) {
           const digit = parseInt(event.key, 10);
-          if (!isNaN(digit)) {
+          if (
+            !isNaN(digit) &&
+            variations.some(
+              (v) => v.index === digit
+            )
+          ) {
             const { word } =
               st.analysis
-                .singleGlyphWithVariants;
-            const variations =
-              getVariations(word);
-            if (
-              digit !== 0 &&
-              !variations.some(
-                (v) => v.index === digit
-              )
-            ) {
-              return false;
-            }
-
+                .singleGlyphWithVariants!;
             const cp = wordToCodepoint[word];
             if (cp === undefined) return false;
 
             let newText: string;
-            if (
-              word === "ni" && digit > 0
-            ) {
+            if (word === "ni") {
               const dir =
                 niDirectionByIndex(digit);
               if (dir) {
-                newText = niZwjString(cp, dir);
+                newText = niDirString(cp, dir);
               } else {
                 newText = codepointToChar(cp);
               }
             } else {
               newText = codepointToChar(cp);
-              if (digit > 0) {
-                newText += String.fromCodePoint(
-                  VARIATION_SELECTOR_BASE +
-                    (digit - 1)
-                );
-              }
+              newText += String.fromCodePoint(
+                VARIATION_SELECTOR_BASE +
+                  (digit - 1)
+              );
             }
 
             const tr = view.state.tr.insertText(
@@ -1358,21 +1567,24 @@ export function createSelectionMenuPlugin() {
           }
         }
 
-        // Arrow keys + Enter (action navigation)
-        // Let Shift+Arrow pass through for text
-        // selection expansion
+        // Arrow keys (let Shift+Arrow pass through
+        // for text selection expansion)
         if (
           event.key === "ArrowDown" &&
           !event.shiftKey &&
-          st.actions.length > 0
+          totalRows > 0
         ) {
-          const next =
-            (st.activeActionIndex + 1) %
-            st.actions.length;
+          let next = st.activeActionIndex + 1;
+          if (next >= st.actions.length) {
+            next = minRow;
+          }
           view.dispatch(
             view.state.tr.setMeta(
               selectionMenuPluginKey,
-              { activeActionIndex: next }
+              {
+                navigate: true,
+                activeActionIndex: next,
+              }
             )
           );
           return true;
@@ -1381,38 +1593,146 @@ export function createSelectionMenuPlugin() {
         if (
           event.key === "ArrowUp" &&
           !event.shiftKey &&
-          st.actions.length > 0
+          totalRows > 0
         ) {
-          const next =
-            (st.activeActionIndex -
-              1 +
-              st.actions.length) %
-            st.actions.length;
+          let next = st.activeActionIndex - 1;
+          if (next < minRow) {
+            next = st.actions.length - 1;
+            if (next < minRow) next = minRow;
+          }
           view.dispatch(
             view.state.tr.setMeta(
               selectionMenuPluginKey,
-              { activeActionIndex: next }
+              {
+                navigate: true,
+                activeActionIndex: next,
+              }
             )
           );
           return true;
         }
 
         if (
-          event.key === "Enter" &&
-          st.actions.length > 0
+          event.key === "ArrowLeft" &&
+          !event.shiftKey &&
+          onVariantRow
         ) {
+          let next =
+            st.activeVariantIndex - 1;
+          if (next < 1) {
+            next = variations.length;
+          }
           view.dispatch(
             view.state.tr.setMeta(
               selectionMenuPluginKey,
               {
-                executeAction:
-                  st.actions[
-                    st.activeActionIndex
-                  ],
+                navigate: true,
+                activeVariantIndex: next,
               }
             )
           );
           return true;
+        }
+
+        if (
+          event.key === "ArrowRight" &&
+          !event.shiftKey &&
+          onVariantRow
+        ) {
+          let next =
+            st.activeVariantIndex + 1;
+          if (next > variations.length) {
+            next = 1;
+          }
+          view.dispatch(
+            view.state.tr.setMeta(
+              selectionMenuPluginKey,
+              {
+                navigate: true,
+                activeVariantIndex: next,
+              }
+            )
+          );
+          return true;
+        }
+
+        // Left/right on action row: dismiss
+        if (
+          (event.key === "ArrowLeft" ||
+            event.key === "ArrowRight") &&
+          !event.shiftKey &&
+          !onVariantRow
+        ) {
+          view.dispatch(
+            view.state.tr.setMeta(
+              selectionMenuPluginKey,
+              null
+            )
+          );
+          return true;
+        }
+
+        // Enter: apply active variant or action
+        if (event.key === "Enter") {
+          if (onVariantRow) {
+            // Apply active variant
+            const { word } =
+              st.analysis
+                .singleGlyphWithVariants!;
+            const cp = wordToCodepoint[word];
+            if (cp === undefined) return false;
+            const idx = st.activeVariantIndex;
+
+            let newText: string;
+            if (word === "ni") {
+              const dir =
+                niDirectionByIndex(idx);
+              if (dir) {
+                newText = niDirString(cp, dir);
+              } else {
+                newText = codepointToChar(cp);
+              }
+            } else {
+              newText = codepointToChar(cp);
+              if (idx > 0) {
+                newText +=
+                  String.fromCodePoint(
+                    VARIATION_SELECTOR_BASE +
+                      (idx - 1)
+                  );
+              }
+            }
+
+            const tr = view.state.tr.insertText(
+              newText,
+              st.analysis.from,
+              st.analysis.to
+            );
+            tr.setMeta(
+              selectionMenuPluginKey,
+              null
+            );
+            view.dispatch(tr);
+            return true;
+          }
+
+          if (
+            st.actions.length > 0 &&
+            st.activeActionIndex >= 0
+          ) {
+            view.dispatch(
+              view.state.tr.setMeta(
+                selectionMenuPluginKey,
+                {
+                  executeAction:
+                    st.actions[
+                      st.activeActionIndex
+                    ],
+                }
+              )
+            );
+            return true;
+          }
         }
 
         // Direct shortcut keys
@@ -1441,6 +1761,10 @@ export function createSelectionMenuPlugin() {
           {
             key: "+",
             pair: ["scale", "unscale"],
+          },
+          {
+            key: "&",
+            pair: ["join", "unjoin"],
           },
           {
             key: "Tab",
@@ -1763,6 +2087,29 @@ function unwrapLongGlyph(
   editor.view.dispatch(tr);
 }
 
+function shrinkLongGlyphTail(
+  editor: Editor,
+  from: number,
+  wrapTo: number
+): void {
+  const endChar = String.fromCodePoint(
+    END_OF_LONG_GLYPH
+  );
+  const endLen =
+    END_OF_LONG_GLYPH > 0xffff ? 2 : 1;
+  const content =
+    editor.state.doc.textBetween(
+      from, wrapTo - endLen
+    );
+  const tr = editor.state.tr.insertText(
+    endChar + content,
+    from,
+    wrapTo
+  );
+  tr.setMeta(selectionMenuPluginKey, null);
+  editor.view.dispatch(tr);
+}
+
 function removeJoiners(
   editor: Editor,
   from: number,
@@ -1903,6 +2250,94 @@ function convertFromVerbatimAction(
   editor.view.dispatch(tr);
 }
 
+// ── Action execution ────────────────────────────
+
+function performAction(
+  editor: Editor,
+  actionId: ActionId,
+  analysis: SelectionAnalysis
+): void {
+  const {
+    from,
+    to,
+    insideCartouche,
+    insideLongGlyph,
+    adjacentLongGlyph,
+    precedingLongGlyph,
+  } = analysis;
+
+  switch (actionId) {
+    case "wrapCartouche":
+      wrapInCartouche(editor, from, to);
+      break;
+    case "unwrapCartouche":
+      if (insideCartouche) {
+        unwrapCartouche(
+          editor,
+          insideCartouche.wrapFrom,
+          insideCartouche.wrapTo
+        );
+      }
+      break;
+    case "wrapLongGlyph":
+      wrapInLongGlyph(
+        editor,
+        from,
+        to,
+        adjacentLongGlyph,
+        precedingLongGlyph?.glyphFrom ?? null
+      );
+      break;
+    case "unwrapLongGlyph":
+      if (insideLongGlyph) {
+        if (analysis.longGlyphTail) {
+          shrinkLongGlyphTail(
+            editor,
+            from,
+            insideLongGlyph.wrapTo
+          );
+        } else {
+          unwrapLongGlyph(
+            editor,
+            insideLongGlyph.wrapFrom,
+            insideLongGlyph.wrapTo
+          );
+        }
+      }
+      break;
+    case "stack":
+      joinWithJoiner(
+        editor, from, to, STACKING_JOINER
+      );
+      break;
+    case "scale":
+      joinWithJoiner(
+        editor, from, to, SCALING_JOINER
+      );
+      break;
+    case "join":
+      joinWithJoiner(
+        editor, from, to, ZWJ
+      );
+      break;
+    case "unstack":
+    case "unscale":
+    case "unjoin":
+      removeJoiners(editor, from, to);
+      break;
+    case "convertToVerbatim":
+      convertToVerbatimAction(
+        editor, from, to
+      );
+      break;
+    case "convertToSP":
+      convertFromVerbatimAction(
+        editor, from, to
+      );
+      break;
+  }
+}
+
 // ── React component ─────────────────────────────
 
 interface SelectionMenuProps {
@@ -1934,7 +2369,7 @@ function glyphChar(
   if (variation && variation > 0) {
     if (word === "ni") {
       const dir = niDirectionByIndex(variation);
-      if (dir) return niZwjString(cp, dir);
+      if (dir) return niDirString(cp, dir);
     }
     return applyVariation(base, variation);
   }
@@ -2045,8 +2480,23 @@ function renderActionLabel(
       }
       break;
     }
-    case "wrapLongGlyph":
-      if (singleLine && preview) {
+    case "wrapLongGlyph": {
+      const adjP =
+        analysis.adjacentLongGlyphPreview;
+      if (
+        singleLine && preview && adjP &&
+        analysis.adjacentLongGlyph?.side
+          === "before"
+      ) {
+        // Extending adjacent: insert selected
+        // content before closing paren
+        const lp = adjP.lastIndexOf(")");
+        const after = lp >= 0
+          ? adjP.slice(0, lp) +
+            ` ${preview})`
+          : `${adjP} ${preview}`;
+        afterNode = <SP>{after}</SP>;
+      } else if (singleLine && preview) {
         if (analysis.precedingLongGlyph) {
           const c =
             analysis.precedingLongGlyph.word;
@@ -2092,13 +2542,41 @@ function renderActionLabel(
         );
       }
       break;
+    }
     case "unwrapLongGlyph": {
+      if (
+        analysis.longGlyphTail &&
+        analysis.longGlyphTailHeadPreview
+      ) {
+        if (singleLine && preview) {
+          afterNode = (
+            <SP>
+              {analysis.longGlyphTailHeadPreview +
+                ` ${preview}`}
+            </SP>
+          );
+        } else {
+          afterNode = (
+            <>
+              <SP>
+                {analysis
+                  .longGlyphTailHeadPreview}
+              </SP>
+              {" ..."}
+            </>
+          );
+        }
+        break;
+      }
       const container =
         analysis.longGlyphContainerWord
         ?? first;
-      if (singleLine && preview) {
+      const lgPreview =
+        analysis.longGlyphContentPreview
+        ?? preview;
+      if (singleLine && lgPreview) {
         const content =
-          stripLongGlyphMarkers(preview);
+          stripLongGlyphMarkers(lgPreview);
         const words = content.split(" ");
         const inner =
           words[0] === container
@@ -2127,8 +2605,14 @@ function renderActionLabel(
         <SP>{`${first}+${second}`}</SP>
       );
       break;
+    case "join":
+      afterNode = (
+        <SP>{`${first}&${second}`}</SP>
+      );
+      break;
     case "unstack":
     case "unscale":
+    case "unjoin":
       afterNode = (
         <SP>{`${first} ${second}`}</SP>
       );
@@ -2154,7 +2638,20 @@ function renderActionLabel(
     ) {
       const c =
         analysis.longGlyphContainerWord;
-      beforeStr = `${c}(${preview})`;
+      const lgp =
+        analysis.longGlyphContentPreview;
+      beforeStr = lgp
+        ? `${c}${lgp}`
+        : `${c}(${preview})`;
+    } else if (
+      actionId === "wrapLongGlyph" &&
+      analysis.adjacentLongGlyphPreview &&
+      analysis.adjacentLongGlyph?.side
+        === "before"
+    ) {
+      beforeStr =
+        `${analysis.adjacentLongGlyphPreview}` +
+        ` ${preview}`;
     }
 
     return (
@@ -2196,6 +2693,8 @@ export function SelectionMenu({
     useState<ActionId[]>([]);
   const [activeActionIndex, setActiveActionIndex] =
     useState(0);
+  const [activeVariantIndex, setActiveVariantIndex] =
+    useState(0);
   const [coords, setCoords] = useState<{
     left: number;
     top: number;
@@ -2205,81 +2704,7 @@ export function SelectionMenu({
   const executeAction = useCallback(
     (actionId: ActionId) => {
       if (!analysis) return;
-      const {
-        from,
-        to,
-        insideCartouche,
-        insideLongGlyph,
-        adjacentLongGlyph,
-        precedingLongGlyph,
-      } = analysis;
-
-      switch (actionId) {
-        case "wrapCartouche":
-          wrapInCartouche(editor, from, to);
-          break;
-        case "unwrapCartouche":
-          if (insideCartouche) {
-            unwrapCartouche(
-              editor,
-              insideCartouche.wrapFrom,
-              insideCartouche.wrapTo
-            );
-          }
-          break;
-        case "wrapLongGlyph":
-          wrapInLongGlyph(
-            editor,
-            from,
-            to,
-            adjacentLongGlyph,
-            precedingLongGlyph?.glyphFrom ?? null
-          );
-          break;
-        case "unwrapLongGlyph":
-          if (insideLongGlyph) {
-            unwrapLongGlyph(
-              editor,
-              insideLongGlyph.wrapFrom,
-              insideLongGlyph.wrapTo
-            );
-          }
-          break;
-        case "stack":
-          joinWithJoiner(
-            editor,
-            from,
-            to,
-            STACKING_JOINER
-          );
-          break;
-        case "scale":
-          joinWithJoiner(
-            editor,
-            from,
-            to,
-            SCALING_JOINER
-          );
-          break;
-        case "unstack":
-        case "unscale":
-          removeJoiners(editor, from, to);
-          break;
-        case "convertToVerbatim":
-          convertToVerbatimAction(
-            editor,
-            from,
-            to
-          );
-          break;
-        case "convertToSP":
-          convertFromVerbatimAction(
-            editor,
-            from,
-            to
-          );
-          break;
-      }
+      performAction(editor, actionId, analysis);
     },
     [editor, analysis]
   );
@@ -2294,7 +2719,19 @@ export function SelectionMenu({
         selectionMenuPluginKey
       );
       if (meta?.executeAction) {
-        executeAction(meta.executeAction);
+        // Read analysis fresh from plugin state
+        // to avoid stale closure
+        const fresh =
+          selectionMenuPluginKey.getState(
+            editor.state
+          ) as SelectionMenuPluginState;
+        if (fresh.analysis) {
+          performAction(
+            editor,
+            meta.executeAction,
+            fresh.analysis
+          );
+        }
         return;
       }
 
@@ -2307,6 +2744,7 @@ export function SelectionMenu({
         setAnalysis(null);
         setActions([]);
         setActiveActionIndex(0);
+        setActiveVariantIndex(0);
         return;
       }
       try {
@@ -2330,13 +2768,16 @@ export function SelectionMenu({
       setActiveActionIndex(
         st.activeActionIndex
       );
+      setActiveVariantIndex(
+        st.activeVariantIndex
+      );
     };
 
     editor.on("transaction", update);
     return () => {
       editor.off("transaction", update);
     };
-  }, [editor, executeAction]);
+  }, [editor]);
 
   const handleVariantSelect = useCallback(
     (variation: number) => {
@@ -2355,7 +2796,7 @@ export function SelectionMenu({
         const dir =
           niDirectionByIndex(variation);
         if (dir) {
-          newText = niZwjString(cp, dir);
+          newText = niDirString(cp, dir);
         } else {
           newText = codepointToChar(cp);
         }
@@ -2440,44 +2881,23 @@ export function SelectionMenu({
     >
       {showVariants && (
         <div className="selection-menu__section">
-          <div className="variant-grid">
-            {singleGlyphWithVariants!.word
-              !== "ni" && (
-              <button
-                className="variant-option"
-                onMouseDown={preventBlur}
-                onClick={() =>
-                  handleVariantSelect(0)
-                }
-                title="Default"
-                type="button"
-              >
-                <span
-                  className={
-                    "selection-menu__glyph"
-                  }
-                >
-                  {glyphChar(
-                    singleGlyphWithVariants!.word
-                  )}
-                </span>
-                <span className="variant-label">
-                  0
-                </span>
-              </button>
-            )}
+          <div className="variant-row">
             {getVariations(
               singleGlyphWithVariants!.word
             ).map((v) => {
-              const niDir =
-                singleGlyphWithVariants!.word
-                  === "ni"
-                  ? niDirectionByIndex(v.index)
-                  : null;
+              const isActive =
+                activeActionIndex === -1 &&
+                activeVariantIndex === v.index;
               return (
                 <button
                   key={v.index}
-                  className="variant-option"
+                  className={
+                    "variant-row__btn"
+                    + (isActive
+                      ? " variant-row__btn"
+                        + "--active"
+                      : "")
+                  }
                   onMouseDown={preventBlur}
                   onClick={() =>
                     handleVariantSelect(v.index)
@@ -2487,7 +2907,7 @@ export function SelectionMenu({
                 >
                   <span
                     className={
-                      "selection-menu__glyph"
+                      "variant-row__glyph"
                     }
                   >
                     {glyphChar(
@@ -2496,11 +2916,9 @@ export function SelectionMenu({
                       v.index
                     )}
                   </span>
-                  <span className="variant-label">
-                    {niDir
-                      ? `${v.index} ${niDir.arrow}`
-                      : v.index}
-                  </span>
+                  <kbd>
+                    {v.index}
+                  </kbd>
                 </button>
               );
             })}
@@ -2555,11 +2973,11 @@ export function SelectionMenu({
                       + "__action-hint"
                     }
                   >
-                    <kbd className="keycap">
+                    <kbd>
                       {ACTION_HINTS[actionId]}
                     </kbd>
                     {active && (
-                      <kbd className="keycap">
+                      <kbd>
                         {"\u21B5"}
                       </kbd>
                     )}

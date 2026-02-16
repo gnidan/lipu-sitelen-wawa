@@ -4,6 +4,7 @@
 @import "./autocomplete.css";
 @import "./copy-bar.css";
 @import "./help.css";
+@import "./indicator-tooltip.css";
 
 
 *,
@@ -27,13 +28,160 @@ body {
 
 h1 {
   font-size: 3rem;
-  margin: 0 0 4px;
+  margin: 0;
+}
+
+.app__header {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: 6rem auto;
+  column-gap: 16px;
+  align-items: end;
+}
+
+.app__title {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: start;
+}
+
+.app__panels {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: stretch;
+  position: relative;
 }
 
 .app__subtitle {
+  grid-column: 1;
+  grid-row: 2;
   font-size: 1.5rem;
   margin: 0;
   color: #888;
+}
+
+.app__toolbar {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: stretch;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.button-group {
+  display: flex;
+  align-items: flex-end;
+  flex-shrink: 0;
+  white-space: nowrap;
+  border: 1.5px solid rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  margin-top: 4px;
+  overflow: hidden;
+  transition:
+    max-width 0.2s ease,
+    border-color 0.2s ease,
+    padding 0.2s ease,
+    opacity 0.15s ease;
+}
+
+.button-group--allow-overflow {
+  overflow: visible;
+}
+
+.button-group--hidden {
+  max-width: 0;
+  border-color: transparent;
+  padding: 0;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.button-group__label {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 6px;
+  color: #bbb;
+  font-size: 1.4rem;
+  line-height: 1;
+  border-right: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.button-group .toolbar-button {
+  border-radius: 0;
+}
+
+.toolbar-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid rgba(0, 0, 0, 0.1);
+  background: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  color: #999;
+  font-size: 1.4rem;
+  line-height: 1;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.toolbar-button:hover {
+  color: #4a7ab5;
+}
+
+.toolbar-button--active {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.toolbar-button--active:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.toolbar-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 8px 6px 4px 6px;
+  color: #999;
+  font-size: 1.4rem;
+  line-height: 1;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.toolbar-toggle:hover {
+  color: #4a7ab5;
+}
+
+.toolbar-toggle--active {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.toolbar-toggle--active:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.toolbar-button:disabled {
+  color: #ccc;
+  cursor: default;
+}
+
+.button-group .toolbar-button {
+  border: none;
+}
+
+.app--hide-indicators
+  .structural-indicator-overlay {
+  display: none;
+}
+
+.app__main {
+  margin-top: 12px;
 }
 
 .sp-text {

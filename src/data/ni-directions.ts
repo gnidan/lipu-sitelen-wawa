@@ -10,7 +10,8 @@
  *   ni + ZWJ + ← ↑ → ↓ ↖ ↗ ↘ ↙
  */
 
-export const ZWJ = 0x200d;
+import { ZWJ } from "./control-chars";
+export { ZWJ };
 
 export interface NiDirection {
   index: number;
@@ -96,6 +97,18 @@ const BY_VERBATIM = new Map(
   NI_DIRECTIONS.map((d) => [d.verbatim, d])
 );
 
+// Accept reversed 2-char combos (e.g. "<^" as
+// well as "^<" for upper-left)
+for (const d of NI_DIRECTIONS) {
+  if (d.verbatim.length === 2) {
+    const rev =
+      d.verbatim[1] + d.verbatim[0];
+    if (!BY_VERBATIM.has(rev)) {
+      BY_VERBATIM.set(rev, d);
+    }
+  }
+}
+
 /** Lookup: arrow codepoint -> NiDirection */
 const BY_ARROW_CP = new Map(
   NI_DIRECTIONS.map((d) => [d.arrowCp, d])
@@ -126,15 +139,16 @@ export function niDirectionByIndex(
 
 /**
  * Build the UCSUR string for a ni directional
- * variant: ni codepoint + ZWJ + arrow character.
+ * variant: ni codepoint + arrow character.
+ * The font combines these via GSUB ligature
+ * without needing ZWJ.
  */
-export function niZwjString(
+export function niDirString(
   niCp: number,
   dir: NiDirection
 ): string {
   return (
     String.fromCodePoint(niCp) +
-    String.fromCodePoint(ZWJ) +
     dir.arrow
   );
 }

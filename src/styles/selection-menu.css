@@ -5,7 +5,6 @@
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   padding: 8px;
-  z-index: 100;
   max-width: 320px;
 }
 
@@ -18,52 +17,41 @@
   border-top: 1px solid #e8e8e8;
 }
 
-/* Variant grid (reuses existing patterns) */
-.variant-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
+/* Variant row */
+.variant-row {
+  display: flex;
+  gap: 2px;
 }
 
-.variant-option {
+.variant-row__btn {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 56px;
-  height: 56px;
-  border: 1px solid #e0e0e0;
+  width: 34px;
+  height: 38px;
+  border: none;
   border-radius: 6px;
-  background: #fafafa;
+  background: transparent;
   cursor: pointer;
-  transition:
-    background 0.1s,
-    border-color 0.1s;
+  transition: background 0.1s;
+  padding: 0;
 }
 
-.variant-option:hover {
+.variant-row__btn:hover {
+  background: #f0f0f0;
+}
+
+.variant-row__btn--active {
   background: #f0f0ff;
-  border-color: #aaa;
 }
 
-.variant-option.selected {
-  background: rgba(100, 100, 255, 0.12);
-  border-color: #88f;
-}
-
-.selection-menu__glyph {
+.variant-row__glyph {
   font-family: "nasin-nanpa-ucsur", sans-serif;
-  font-size: 1.8rem;
+  font-size: 1.1rem;
   line-height: 1;
   font-feature-settings: "liga" 1, "calt" 1;
   font-variant-ligatures: normal;
-}
-
-.variant-label {
-  font-family: system-ui, sans-serif;
-  font-size: 0.7rem;
-  color: #888;
-  margin-top: 2px;
 }
 
 /* Action list */

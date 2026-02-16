@@ -121,16 +121,6 @@ export const glyphVariations: Record<
   ],
 };
 
-export function hasVariations(word: string): boolean {
-  return word in glyphVariations;
-}
-
-export function getVariations(
-  word: string
-): VariationInfo[] {
-  return glyphVariations[word] ?? [];
-}
-
 /**
  * Append the appropriate variation selector to a UCSUR
  * character string. The index is 1-based (1–8).

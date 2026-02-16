@@ -13,6 +13,11 @@ import {
   START_OF_CARTOUCHE,
   END_OF_CARTOUCHE,
   CARTOUCHE_EXTENSION,
+  MIDDLE_DOT,
+  COLON,
+  COMBINING_TALLY_MARK,
+  IDEOGRAPHIC_SPACE,
+  ZWJ,
 } from "./control-chars";
 
 const ASCII_TO_UCSUR: Record<string, number> = {
@@ -26,6 +31,14 @@ const ASCII_TO_UCSUR: Record<string, number> = {
   "}": END_OF_REVERSE_LONG_GLYPH,
   "=": CARTOUCHE_EXTENSION,
   "_": CARTOUCHE_EXTENSION,
+  ".": MIDDLE_DOT,
+  ":": COLON,
+  ",": COMBINING_TALLY_MARK,
+  "|": IDEOGRAPHIC_SPACE,
+  "&": ZWJ,
+  "<": 0x2190,  // ← left arrow
+  "^": 0x2191,  // ↑ up arrow
+  ">": 0x2192,  // → right arrow
 };
 
 const UCSUR_TO_ASCII: Record<number, string> = {
@@ -38,6 +51,14 @@ const UCSUR_TO_ASCII: Record<number, string> = {
   [START_OF_REVERSE_LONG_GLYPH]: "{",
   [END_OF_REVERSE_LONG_GLYPH]: "}",
   [CARTOUCHE_EXTENSION]: "=",
+  [MIDDLE_DOT]: ".",
+  [COLON]: ":",
+  [COMBINING_TALLY_MARK]: ",",
+  [IDEOGRAPHIC_SPACE]: "|",
+  [ZWJ]: "&",
+  0x2190: "<",  // ← left arrow
+  0x2191: "^",  // ↑ up arrow
+  0x2192: ">",  // → right arrow
 };
 
 const VS_START = 0xFE00;

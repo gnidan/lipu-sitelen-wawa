@@ -6,21 +6,26 @@ import {
   isUcsurChar,
   ZWJ,
   isNiArrowCp,
+  applyVariation,
   niDirectionByIndex,
-  niZwjString,
+  niDirString,
 } from "../../data";
 import {
   isVariationSelector,
-} from "../../data/structural-map";
-import {
   VARIATION_SELECTOR_BASE,
-} from "../../data/variations";
+} from "../../data";
 import {
   autocompletePluginKey,
 } from "./autocomplete";
 import type {
   AutocompleteState,
 } from "./autocomplete";
+
+interface GlyphTarget {
+  word: string;
+  from: number;
+  to: number;
+}
 
 /**
  * Find a UCSUR character before the cursor,
@@ -31,11 +36,7 @@ import type {
 function ucsurCharBeforeCursor(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   editor: any
-): {
-  word: string;
-  from: number;
-  to: number;
-} | null {
+): GlyphTarget | null {
   const { $from } = editor.state.selection;
   const textNode = $from.nodeBefore;
 
@@ -50,24 +51,29 @@ function ucsurCharBeforeCursor(
   // Parse backward from end of text
   let endIdx = text.length;
 
-  // Check if trailing char is a Unicode arrow
-  // preceded by ZWJ (ni ZWJ encoding)
-  let hasZwjArrow = false;
+  // Check if trailing char is a ni direction
+  // arrow (with or without ZWJ before it)
+  let hasArrow = false;
   {
     const lastCp = text.codePointAt(endIdx - 1);
     if (
       lastCp !== undefined &&
-      isNiArrowCp(lastCp) &&
-      endIdx >= 2 &&
-      text.codePointAt(endIdx - 2) === ZWJ
+      isNiArrowCp(lastCp)
     ) {
-      endIdx -= 2; // skip arrow + ZWJ
-      hasZwjArrow = true;
+      endIdx--; // skip arrow
+      hasArrow = true;
+      // Also skip ZWJ if present (legacy)
+      if (
+        endIdx >= 1 &&
+        text.codePointAt(endIdx - 1) === ZWJ
+      ) {
+        endIdx--;
+      }
     }
   }
 
   // Check if last char is a variation selector
-  if (!hasZwjArrow && endIdx > 0) {
+  if (!hasArrow && endIdx > 0) {
     const lastCp = text.codePointAt(endIdx - 1);
     if (
       lastCp !== undefined &&
@@ -102,6 +108,71 @@ function ucsurCharBeforeCursor(
   return { word, from, to };
 }
 
+/**
+ * Find a single UCSUR character within the
+ * current text selection, possibly followed by
+ * a variation selector or ni direction arrow.
+ * Returns null if the selection doesn't contain
+ * exactly one glyph (with optional modifier).
+ */
+function ucsurCharInSelection(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  editor: any
+): GlyphTarget | null {
+  const { from, to } = editor.state.selection;
+  if (from === to) return null;
+
+  const text = editor.state.doc.textBetween(
+    from, to
+  );
+
+  // Expect a UCSUR character (above BMP →
+  // surrogate pair, 2 JS char units)
+  if (text.length < 2) return null;
+  const cp = text.codePointAt(0);
+  if (
+    cp === undefined ||
+    !isUcsurChar(String.fromCodePoint(cp))
+  ) {
+    return null;
+  }
+
+  const word = codepointToWord[cp];
+  if (!word) return null;
+
+  let idx = 2; // skip surrogate pair
+
+  // Check for optional trailing modifier:
+  // variation selector, ZWJ+arrow, or bare arrow
+  if (idx < text.length) {
+    const nextCp = text.codePointAt(idx);
+    if (nextCp !== undefined) {
+      if (isVariationSelector(nextCp)) {
+        idx++;
+      } else if (nextCp === ZWJ) {
+        idx++;
+        if (idx < text.length) {
+          const arrowCp =
+            text.codePointAt(idx);
+          if (
+            arrowCp !== undefined &&
+            isNiArrowCp(arrowCp)
+          ) {
+            idx++;
+          }
+        }
+      } else if (isNiArrowCp(nextCp)) {
+        idx++;
+      }
+    }
+  }
+
+  // Must have consumed the entire selection
+  if (idx !== text.length) return null;
+
+  return { word, from, to };
+}
+
 function makeVariantHandler(
   variation: number | null
 ) {
@@ -111,39 +182,48 @@ function makeVariantHandler(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     editor: any;
   }) => {
-    // If autocomplete has active prefix, digits
-    // should go to autocomplete first
-    const acState =
-      autocompletePluginKey.getState(
-        editor.state
-      ) as AutocompleteState | undefined;
-    if (acState && acState.prefix.length > 0) {
-      return false;
+    const { from, to } = editor.state.selection;
+
+    let target: GlyphTarget | null;
+
+    if (from !== to) {
+      // Selection: look at the selected text
+      target = ucsurCharInSelection(editor);
+    } else {
+      // Cursor: defer to autocomplete if active
+      const acState =
+        autocompletePluginKey.getState(
+          editor.state
+        ) as AutocompleteState | undefined;
+      if (
+        acState && acState.prefix.length > 0
+      ) {
+        return false;
+      }
+      target = ucsurCharBeforeCursor(editor);
     }
 
-    // Find UCSUR char before cursor
-    const before = ucsurCharBeforeCursor(editor);
-    if (!before) return false;
+    if (!target) return false;
 
     if (
       variation !== null &&
-      !hasVariations(before.word)
+      !hasVariations(target.word)
     ) {
       return false;
     }
 
-    const baseCp = wordToCodepoint[before.word];
+    const baseCp = wordToCodepoint[target.word];
     if (baseCp === undefined) return false;
 
     let newText: string;
     if (
-      before.word === "ni" &&
+      target.word === "ni" &&
       variation !== null &&
       variation > 0
     ) {
       const dir = niDirectionByIndex(variation);
       if (dir) {
-        newText = niZwjString(baseCp, dir);
+        newText = niDirString(baseCp, dir);
       } else {
         newText = String.fromCodePoint(baseCp);
       }
@@ -160,8 +240,8 @@ function makeVariantHandler(
     const { state } = editor.view;
     const tr = state.tr.insertText(
       newText,
-      before.from,
-      before.to
+      target.from,
+      target.to
     );
     editor.view.dispatch(tr);
     return true;

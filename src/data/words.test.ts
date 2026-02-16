@@ -5,8 +5,8 @@ import {
   getWord,
   wordsByCategory,
   wordsByPrefix,
-} from "./words";
-import { wordToCodepoint } from "./ucsur";
+  wordToCodepoint,
+} from "./";
 
 describe("words", () => {
   describe("isWord", () => {
@@ -56,7 +56,7 @@ describe("words", () => {
   describe("wordsByCategory", () => {
     it("returns many core words", () => {
       const core = wordsByCategory("core");
-      expect(core.length).toBe(120);
+      expect(core.length).toBe(122);
     });
 
     it("returns common words", () => {
@@ -131,14 +131,18 @@ describe("words", () => {
       }
     });
 
-    it("all words have valid UCSUR codepoints", () => {
+    it("all words have valid codepoints", () => {
+      const SPECIAL_WORD_CPS = new Set([
+        0x300C, 0x300D,
+      ]);
       for (const entry of Object.values(words)) {
-        expect(entry.codepoint).toBeGreaterThanOrEqual(
-          0xF1900
-        );
-        expect(entry.codepoint).toBeLessThanOrEqual(
-          0xF19FF
-        );
+        if (SPECIAL_WORD_CPS.has(entry.codepoint)) {
+          continue;
+        }
+        expect(entry.codepoint)
+          .toBeGreaterThanOrEqual(0xF1900);
+        expect(entry.codepoint)
+          .toBeLessThanOrEqual(0xF19FF);
       }
     });
   });

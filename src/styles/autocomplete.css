@@ -26,6 +26,16 @@
   background: #f0f0ff;
 }
 
+/* Remove bottom radius when a sub-row follows */
+.autocomplete-item--active:has(
+  + .autocomplete-variants,
+  + .autocomplete-compass,
+  + .autocomplete-ni-hint
+) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
 .autocomplete-item__glyph {
   font-family: "nasin-nanpa-ucsur", sans-serif;
   font-size: 1.8rem;
@@ -66,6 +76,9 @@
   flex-wrap: wrap;
   gap: 4px;
   padding: 4px 10px 6px;
+  background: #f0f0ff;
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
 }
 
 .autocomplete-variant-btn {
@@ -75,29 +88,22 @@
   justify-content: center;
   width: 40px;
   height: 40px;
-  border: 1px solid #e0e0e0;
+  border: none;
   border-radius: 6px;
-  background: #fafafa;
+  background: transparent;
   cursor: pointer;
-  transition: background 0.1s, border-color 0.1s;
+  transition: background 0.1s;
   padding: 0;
 }
 
 .autocomplete-variant-btn:hover {
-  background: #f0f0ff;
-  border-color: #aaa;
+  background: #f0f0f0;
 }
 
 .autocomplete-variant-glyph {
   font-family: "nasin-nanpa-ucsur", sans-serif;
   font-size: 1.2rem;
   line-height: 1;
-}
-
-.autocomplete-variant-key {
-  font-family: system-ui, sans-serif;
-  font-size: 0.6rem;
-  color: #999;
 }
 
 /* Ni direction compass */
@@ -112,7 +118,9 @@
   gap: 2px;
   justify-content: center;
   padding: 6px 10px;
-  border-top: 1px solid #f0f0f0;
+  background: #f0f0ff;
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
 }
 
 .compass-key {
@@ -174,30 +182,37 @@
   font-feature-settings: "liga" 1, "calt" 1;
 }
 
-/* Ni direction arrow hint (before & is pressed) */
+/* Ni direction hint (before direction is pressed) */
 .autocomplete-ni-hint {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
   padding: 4px 10px 6px;
-  border-top: 1px solid #f0f0f0;
+  background: #f0f0ff;
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
 }
 
-.autocomplete-ni-arrows {
-  font-size: 0.8rem;
+.ni-hint-compass {
+  display: grid;
+  grid-template-areas:
+    ".    up     ."
+    "left center right";
+  grid-template-columns: auto auto auto;
+  grid-template-rows: auto auto;
+  gap: 2px;
+  justify-items: center;
+  align-items: center;
+}
+
+.ni-hint-compass__key {
+  opacity: 0.6;
+}
+
+.ni-hint-compass__label {
+  font-size: 0.55rem;
   color: #999;
-  letter-spacing: 2px;
-}
-
-.autocomplete-ni-key {
-  font-family: monospace;
-  font-size: 0.65rem;
-  color: #bbb;
-  border: 1px solid #e0e0e0;
-  border-radius: 3px;
-  padding: 1px 5px;
-  background: #fafafa;
+  padding: 0 4px;
 }
 
 .autocomplete-structural-hint {
