@@ -27,12 +27,32 @@ describe("wordToCodepoint", () => {
     expect(wordToCodepoint["kijetesantakalu"])
       .toBe(0xF1980);
     expect(wordToCodepoint["ku"]).toBe(0xF1988);
-    expect(wordToCodepoint["linluwi"]).toBe(0xF198C);
+    expect(wordToCodepoint["linluwi"]).toBe(0xF19A4);
+    expect(wordToCodepoint["su"]).toBe(0xF19A6);
   });
 
-  it("contains all 141 words", () => {
-    const count = Object.keys(wordToCodepoint).length;
-    expect(count).toBeGreaterThanOrEqual(141);
+  it("contains all 139 standard words", () => {
+    const count =
+      Object.keys(wordToCodepoint).length;
+    expect(count).toBeGreaterThanOrEqual(139);
+  });
+
+  it("does not contain font-specific words", () => {
+    expect(wordToCodepoint["pake"])
+      .toBeUndefined();
+    expect(wordToCodepoint["apeja"])
+      .toBeUndefined();
+    expect(wordToCodepoint["kokosila"])
+      .toBeUndefined();
+  });
+
+  it("maps moved words to standard CPs", () => {
+    expect(wordToCodepoint["majuna"])
+      .toBe(0xF19A2);
+    expect(wordToCodepoint["linluwi"])
+      .toBe(0xF19A4);
+    expect(wordToCodepoint["su"])
+      .toBe(0xF19A6);
   });
 });
 

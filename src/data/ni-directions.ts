@@ -22,6 +22,13 @@ export interface NiDirection {
   /** Unicode arrow character */
   arrow: string;
   description: string;
+  /**
+   * Standard UCSUR codepoint for this direction,
+   * if one exists (F1989=left, F198A=up, F198B=right).
+   * Absent for down (uses base ni CP) and diagonals
+   * (no standard assignment).
+   */
+  codepoint?: number;
 }
 
 export const NI_DIRECTIONS: NiDirection[] = [
@@ -31,6 +38,7 @@ export const NI_DIRECTIONS: NiDirection[] = [
     arrowCp: 0x2190,
     arrow: "\u2190",
     description: "left arrow",
+    codepoint: 0xF1989,
   },
   {
     index: 2,
@@ -38,6 +46,7 @@ export const NI_DIRECTIONS: NiDirection[] = [
     arrowCp: 0x2191,
     arrow: "\u2191",
     description: "up arrow",
+    codepoint: 0xF198A,
   },
   {
     index: 3,
@@ -45,6 +54,7 @@ export const NI_DIRECTIONS: NiDirection[] = [
     arrowCp: 0x2192,
     arrow: "\u2192",
     description: "right arrow",
+    codepoint: 0xF198B,
   },
   {
     index: 4,
@@ -135,6 +145,19 @@ export function niDirectionByIndex(
   index: number
 ): NiDirection | undefined {
   return BY_INDEX.get(index);
+}
+
+/** Lookup: standard UCSUR codepoint -> NiDirection */
+const BY_CP = new Map<number, NiDirection>(
+  NI_DIRECTIONS
+    .filter((d) => d.codepoint !== undefined)
+    .map((d) => [d.codepoint!, d])
+);
+
+export function niDirectionByCp(
+  cp: number
+): NiDirection | undefined {
+  return BY_CP.get(cp);
 }
 
 /**

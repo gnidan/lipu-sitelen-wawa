@@ -9,6 +9,7 @@ import {
   IDEOGRAPHIC_SPACE,
   ZWJ,
   isNiArrowCp,
+  niDirectionByCp,
 } from "../data";
 
 const VOWELS = new Set("aeiou");
@@ -200,7 +201,16 @@ export function toLatin(input: string): string {
     if (isUcsurChar(char)) {
       const word = codepointToWord[cp];
       if (word) {
-        if (word === "ni") skipNextArrow = true;
+        // Only skip the following arrow for the
+        // base ni CP (F1941). Standard direction
+        // CPs (F1989/F198A/F198B) are
+        // self-contained.
+        if (
+          word === "ni" &&
+          !niDirectionByCp(cp)
+        ) {
+          skipNextArrow = true;
+        }
         if (inCartouche) {
           const { text, advance } =
             resolveCartoucheWord(

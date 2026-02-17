@@ -8,6 +8,11 @@ export {
   ucsurControlToAscii,
   isVariationSelector,
   words,
+  isWord,
+  getWord,
+  wordsByCategory,
+  wordsByPrefix,
+  wordByFirstLetter,
   currentFont,
   hasVariations,
   getVariations,
@@ -15,6 +20,7 @@ export {
   isControlChar,
   isJoiner,
   isCartoucheChar,
+  niDirStringEffective,
 } from "./font-capabilities";
 export type {
   FontCapabilities,
@@ -46,13 +52,6 @@ export {
 } from "./variations";
 export type { VariationInfo } from "./variations";
 
-export {
-  isWord,
-  getWord,
-  wordsByCategory,
-  wordsByPrefix,
-  wordByFirstLetter,
-} from "./words";
 export type {
   WordEntry,
   WordCategory,
@@ -64,6 +63,7 @@ export {
   niDirectionByVerbatim,
   niDirectionByArrowCp,
   niDirectionByIndex,
+  niDirectionByCp,
   niDirString,
   parseVerbatimDirection,
 } from "./ni-directions";

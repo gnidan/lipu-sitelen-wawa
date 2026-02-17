@@ -570,10 +570,6 @@ export const words: Record<string, WordEntry> = {
     "epiku", 0xF1983, "uncommon",
     "epic, cool, awesome, amazing"
   ),
-  "kokosila": w(
-    "kokosila", 0xF1984, "uncommon",
-    "to speak a non-toki-pona language"
-  ),
   "lanpan": w(
     "lanpan", 0xF1985, "uncommon",
     "to take, to seize, to steal"
@@ -592,21 +588,18 @@ export const words: Record<string, WordEntry> = {
   ),
 
   // sandbox (rare / experimental)
-  "pake": w(
-    "pake", 0xF1989, "sandbox",
-    "to stop, to block, to prevent"
-  ),
-  "apeja": w(
-    "apeja", 0xF198A, "sandbox",
-    "shame, guilt, stigma, disgrace"
-  ),
   "majuna": w(
-    "majuna", 0xF198B, "sandbox",
+    "majuna", 0xF19A2, "sandbox",
     "old, aged, ancient"
   ),
   "linluwi": w(
-    "linluwi", 0xF198C, "sandbox",
+    "linluwi", 0xF19A4, "sandbox",
     "internet, network, web, connected"
+  ),
+  "su": w(
+    "su", 0xF19A6, "sandbox",
+    "the Toki Pona Picture Dictionary, " +
+      "interacting with su"
   ),
 
   // Punctuation words (non-UCSUR codepoints)

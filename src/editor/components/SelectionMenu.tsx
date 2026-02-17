@@ -34,7 +34,7 @@ import {
   isNiArrowCp,
   niDirectionByArrowCp,
   niDirectionByIndex,
-  niDirString,
+  niDirStringEffective,
   parseVerbatimDirection,
 } from "../../data";
 import {
@@ -1541,7 +1541,7 @@ export function createSelectionMenuPlugin() {
               const dir =
                 niDirectionByIndex(digit);
               if (dir) {
-                newText = niDirString(cp, dir);
+                newText = niDirStringEffective(dir);
               } else {
                 newText = codepointToChar(cp);
               }
@@ -1688,7 +1688,7 @@ export function createSelectionMenuPlugin() {
               const dir =
                 niDirectionByIndex(idx);
               if (dir) {
-                newText = niDirString(cp, dir);
+                newText = niDirStringEffective(dir);
               } else {
                 newText = codepointToChar(cp);
               }
@@ -2369,7 +2369,7 @@ function glyphChar(
   if (variation && variation > 0) {
     if (word === "ni") {
       const dir = niDirectionByIndex(variation);
-      if (dir) return niDirString(cp, dir);
+      if (dir) return niDirStringEffective(dir);
     }
     return applyVariation(base, variation);
   }
@@ -2796,7 +2796,7 @@ export function SelectionMenu({
         const dir =
           niDirectionByIndex(variation);
         if (dir) {
-          newText = niDirString(cp, dir);
+          newText = niDirStringEffective(dir);
         } else {
           newText = codepointToChar(cp);
         }

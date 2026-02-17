@@ -21,7 +21,7 @@ import {
   getVariations,
   applyVariation,
   niDirectionByVerbatim,
-  niDirString,
+  niDirStringEffective,
 } from "../../data";
 
 interface AutocompletePopupProps {
@@ -102,7 +102,7 @@ function niPreviewChar(buf: string): string {
   if (!buf) return codepointToChar(cp);
   const dir = niDirectionByVerbatim(buf);
   if (!dir) return codepointToChar(cp);
-  return niDirString(cp, dir);
+  return niDirStringEffective(dir);
 }
 
 export function AutocompletePopup({
@@ -199,7 +199,7 @@ export function AutocompletePopup({
       if (cp === undefined) return;
       const dir = niDirectionByVerbatim(verbatim);
       if (!dir) return;
-      const text = niDirString(cp, dir);
+      const text = niDirStringEffective(dir);
       const tr = editor.state.tr.insertText(
         text, from, to
       );

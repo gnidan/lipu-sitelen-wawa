@@ -3,6 +3,10 @@ import {
   toVerbatim,
   fromVerbatim,
 } from "./verbatim";
+import {
+  niDirectionByCp,
+  niDirStringEffective,
+} from "../data";
 
 describe("verbatim round-trip", () => {
   describe("ni directions", () => {
@@ -53,4 +57,52 @@ describe("verbatim round-trip", () => {
         .toBe(v);
     });
   });
+
+  describe(
+    "standard ni CPs (F1989/F198A/F198B)",
+    () => {
+      it(
+        "toVerbatim recognizes standard ni-left",
+        () => {
+          // F1989 = standard ni-left
+          const input = String.fromCodePoint(
+            0xF1989
+          );
+          expect(toVerbatim(input)).toBe("ni<");
+        }
+      );
+
+      it(
+        "toVerbatim recognizes standard ni-up",
+        () => {
+          const input = String.fromCodePoint(
+            0xF198A
+          );
+          expect(toVerbatim(input)).toBe("ni^");
+        }
+      );
+
+      it(
+        "toVerbatim recognizes standard ni-right",
+        () => {
+          const input = String.fromCodePoint(
+            0xF198B
+          );
+          expect(toVerbatim(input)).toBe("ni>");
+        }
+      );
+
+      it(
+        "fromVerbatim ni< produces " +
+          "font-effective output",
+        () => {
+          const result = fromVerbatim("ni<");
+          const dir = niDirectionByCp(0xF1989)!;
+          const expected =
+            niDirStringEffective(dir);
+          expect(result).toBe(expected);
+        }
+      );
+    }
+  );
 });
