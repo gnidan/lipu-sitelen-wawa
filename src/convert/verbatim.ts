@@ -9,6 +9,8 @@ import {
   ZWJ,
   isNiArrowCp,
   niDirectionByArrowCp,
+  niDirectionByCp,
+  niDirStringEffective,
   parseVerbatimDirection,
 } from "../data";
 
@@ -64,6 +66,16 @@ export function toVerbatim(text: string): string {
     const [cp] = cps[i];
 
     if (isVariationSelector(cp)) continue;
+
+    // Standard ni direction CPs (F1989/F198A/F198B)
+    // are self-contained — no following arrow.
+    const niDir = niDirectionByCp(cp);
+    if (niDir) {
+      if (needsSpace) result.push(" ");
+      result.push("ni" + niDir.verbatim);
+      needsSpace = true;
+      continue;
+    }
 
     if (isWordGlyph(cp)) {
       const word = codepointToWord[cp];
@@ -169,15 +181,11 @@ export function fromVerbatim(text: string): string {
         text, i - 1
       );
       if (parsed) {
-        const niCp =
-          wordToCodepoint[
-            wordBuf.toLowerCase()
-          ]!;
         tokens.push({
           ucsur: true,
-          value:
-            codepointToChar(niCp) +
-            parsed.dir.arrow,
+          value: niDirStringEffective(
+            parsed.dir
+          ),
         });
         wordBuf = "";
         i += parsed.length - 1;

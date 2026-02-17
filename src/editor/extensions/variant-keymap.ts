@@ -8,7 +8,7 @@ import {
   isNiArrowCp,
   applyVariation,
   niDirectionByIndex,
-  niDirString,
+  niDirStringEffective,
 } from "../../data";
 import {
   isVariationSelector,
@@ -223,7 +223,7 @@ function makeVariantHandler(
     ) {
       const dir = niDirectionByIndex(variation);
       if (dir) {
-        newText = niDirString(baseCp, dir);
+        newText = niDirStringEffective(dir);
       } else {
         newText = String.fromCodePoint(baseCp);
       }

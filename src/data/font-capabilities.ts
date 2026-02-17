@@ -16,7 +16,10 @@
 import type { VariationInfo } from "./variations";
 import { glyphVariations } from "./variations";
 import type { NiDirection } from "./ni-directions";
-import { NI_DIRECTIONS } from "./ni-directions";
+import {
+  NI_DIRECTIONS,
+  niDirectionByCp,
+} from "./ni-directions";
 import {
   wordToCodepoint as rawWordToCodepoint,
 } from "./ucsur";
@@ -43,9 +46,15 @@ import {
 import {
   words as rawWords,
 } from "./words";
-import type { WordEntry } from "./words";
+import type { WordEntry, WordCategory } from "./words";
 
 export { isVariationSelector };
+
+export interface ExtraWordEntry {
+  codepoint: number;
+  category: WordCategory;
+  definition: string;
+}
 
 export interface FontCapabilities {
   /** Words that have glyph variations (with VS) */
@@ -56,8 +65,18 @@ export interface FontCapabilities {
   supportsZwj: boolean;
   /** ni directions the font supports */
   niDirections: NiDirection[];
-  /** Standard CP → font CP. Applied to all maps. */
-  codepointOverrides: Record<number, number>;
+  /**
+   * Standard CP → font CP (single remap) or
+   * standard CP → font CP[] (multi-char expansion).
+   */
+  codepointOverrides:
+    Record<number, number | number[]>;
+  /**
+   * Font-specific words not in the standard
+   * baseline (e.g. pake, apeja, kokosila for
+   * nasin-nanpa).
+   */
+  extraWords: Record<string, ExtraWordEntry>;
 }
 
 /**
@@ -87,30 +106,86 @@ export const currentFont: FontCapabilities = {
   supportsZwj: true,
   niDirections: NI_DIRECTIONS,
   codepointOverrides: {
-    0x300C: 0xF199E,   // te
-    0x300D: 0xF199F,   // to
-    0xF1989: 0xF19A0,  // pake
-    0xF198A: 0xF19A1,  // apeja
-    0xF198B: 0xF19A2,  // majuna
-    0xF198C: 0xF19A4,  // linluwi
-    0xF199E: 0x2C,     // tally mark → ","
+    0x300C: 0xF199E,              // te
+    0x300D: 0xF199F,              // to
+    0xF199E: 0x2C,                // tally mark
+    0xF1989: [0xF1941, 0x2190],   // ni-left
+    0xF198A: [0xF1941, 0x2191],   // ni-up
+    0xF198B: [0xF1941, 0x2192],   // ni-right
+  },
+  extraWords: {
+    pake: {
+      codepoint: 0xF19A0,
+      category: "sandbox",
+      definition:
+        "to stop, to block, to prevent",
+    },
+    apeja: {
+      codepoint: 0xF19A1,
+      category: "sandbox",
+      definition:
+        "shame, guilt, stigma, disgrace",
+    },
+    kokosila: {
+      codepoint: 0xF1984,
+      category: "uncommon",
+      definition:
+        "to speak a non-toki-pona language",
+    },
   },
 };
 
-// ── Codepoint override helper ───────────────────
+// ── Codepoint override helpers ──────────────────
 
-function mapCodepoint(cp: number): number {
-  return currentFont.codepointOverrides[cp] ?? cp;
+/**
+ * Map a codepoint via overrides, returning a single
+ * codepoint. For multi-char expansions, returns the
+ * first codepoint (used for building word→cp maps).
+ */
+function mapCodepointSingle(cp: number): number {
+  const override =
+    currentFont.codepointOverrides[cp];
+  if (override === undefined) return cp;
+  if (Array.isArray(override)) return override[0];
+  return override;
+}
+
+/**
+ * Map a codepoint via overrides, returning the full
+ * string. For multi-char expansions, returns the
+ * complete multi-character string.
+ */
+function mapCodepointToString(
+  cp: number
+): string {
+  const override =
+    currentFont.codepointOverrides[cp];
+  if (override === undefined) {
+    return String.fromCodePoint(cp);
+  }
+  if (Array.isArray(override)) {
+    return override
+      .map((c) => String.fromCodePoint(c))
+      .join("");
+  }
+  return String.fromCodePoint(override);
 }
 
 // ── Effective word maps ─────────────────────────
 
+const _wordToCp: Record<string, number> = {};
+for (const [word, cp] of
+  Object.entries(rawWordToCodepoint)) {
+  _wordToCp[word] = mapCodepointSingle(cp);
+}
+// Merge in extraWords
+for (const [word, entry] of
+  Object.entries(currentFont.extraWords)) {
+  _wordToCp[word] = entry.codepoint;
+}
+
 export const wordToCodepoint:
-  Record<string, number> = Object.fromEntries(
-    Object.entries(rawWordToCodepoint).map(
-      ([word, cp]) => [word, mapCodepoint(cp)]
-    )
-  );
+  Record<string, number> = _wordToCp;
 
 // First entry per codepoint wins, so canonical
 // forms are preferred over synonyms.
@@ -119,23 +194,43 @@ for (const [word, cp] of
   Object.entries(wordToCodepoint)) {
   if (!(cp in _cpToWord)) _cpToWord[cp] = word;
 }
+// Map standard ni direction CPs → "ni" so that
+// toLatin and toVerbatim can recognize documents
+// using standard encoding.
+for (const dir of NI_DIRECTIONS) {
+  if (
+    dir.codepoint !== undefined &&
+    !(dir.codepoint in _cpToWord)
+  ) {
+    _cpToWord[dir.codepoint] = "ni";
+  }
+}
 export const codepointToWord:
   Record<number, string> = _cpToWord;
 
 // ── Effective words record ──────────────────────
 
+const _words: Record<string, WordEntry> = {};
+for (const [key, entry] of
+  Object.entries(rawWords)) {
+  _words[key] = {
+    ...entry,
+    codepoint: mapCodepointSingle(entry.codepoint),
+  };
+}
+// Merge in extraWords
+for (const [word, extra] of
+  Object.entries(currentFont.extraWords)) {
+  _words[word] = {
+    word,
+    codepoint: extra.codepoint,
+    category: extra.category,
+    definition: extra.definition,
+  };
+}
+
 export const words: Record<string, WordEntry> =
-  Object.fromEntries(
-    Object.entries(rawWords).map(
-      ([key, entry]) => [
-        key,
-        {
-          ...entry,
-          codepoint: mapCodepoint(entry.codepoint),
-        },
-      ]
-    )
-  );
+  _words;
 
 // ── Effective conversion functions ──────────────
 
@@ -189,6 +284,31 @@ export function isUcsurChar(
   return false;
 }
 
+// ── Effective ni direction string ───────────────
+
+/**
+ * Build the effective string for a directional ni
+ * variant, respecting font overrides.
+ *
+ * For directions with a standard UCSUR codepoint,
+ * applies the font's override (which may be a
+ * multi-char expansion). For diagonals without
+ * standard CPs, falls back to the effective ni
+ * codepoint + arrow character.
+ */
+export function niDirStringEffective(
+  dir: NiDirection
+): string {
+  if (dir.codepoint !== undefined) {
+    return mapCodepointToString(dir.codepoint);
+  }
+  // Diagonals: ni CP (effective) + arrow
+  const niCp = wordToCodepoint["ni"];
+  return (
+    String.fromCodePoint(niCp) + dir.arrow
+  );
+}
+
 // ── Effective control char mappings ─────────────
 
 const STRUCTURAL_ASCII = [
@@ -203,7 +323,8 @@ for (const ch of STRUCTURAL_ASCII) {
   const rawStr = rawAsciiToUcsurControl(ch);
   if (rawStr !== undefined) {
     const rawCp = rawStr.codePointAt(0)!;
-    const effectiveCp = mapCodepoint(rawCp);
+    const effectiveCp =
+      mapCodepointSingle(rawCp);
     if (
       !(effectiveCp in effectiveUcsurToAscii)
     ) {
@@ -219,7 +340,7 @@ export function asciiToUcsurControl(
   if (rawStr === undefined) return undefined;
   const rawCp = rawStr.codePointAt(0)!;
   return String.fromCodePoint(
-    mapCodepoint(rawCp)
+    mapCodepointSingle(rawCp)
   );
 }
 
@@ -269,19 +390,19 @@ const RAW_CONTROL_CPS = [
 ];
 
 const effectiveControlChars = new Set(
-  RAW_CONTROL_CPS.map(mapCodepoint)
+  RAW_CONTROL_CPS.map(mapCodepointSingle)
 );
 
 const effectiveJoiners = new Set(
   [STACKING_JOINER, SCALING_JOINER, ZWJ]
-    .map(mapCodepoint)
+    .map(mapCodepointSingle)
 );
 
 const effectiveCartoucheChars = new Set(
   [
     START_OF_CARTOUCHE, END_OF_CARTOUCHE,
     CARTOUCHE_EXTENSION,
-  ].map(mapCodepoint)
+  ].map(mapCodepointSingle)
 );
 
 export function isControlChar(

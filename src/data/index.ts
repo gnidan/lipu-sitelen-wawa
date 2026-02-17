@@ -15,6 +15,7 @@ export {
   isControlChar,
   isJoiner,
   isCartoucheChar,
+  niDirStringEffective,
 } from "./font-capabilities";
 export type {
   FontCapabilities,
@@ -64,6 +65,7 @@ export {
   niDirectionByVerbatim,
   niDirectionByArrowCp,
   niDirectionByIndex,
+  niDirectionByCp,
   niDirString,
   parseVerbatimDirection,
 } from "./ni-directions";

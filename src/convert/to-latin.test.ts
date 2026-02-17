@@ -176,6 +176,50 @@ describe("toLatin", () => {
     }
   );
 
+  describe("standard ni direction CPs", () => {
+    it(
+      "converts ni-left (F1989) to 'ni'",
+      () => {
+        const input = String.fromCodePoint(
+          0xF1989
+        );
+        expect(toLatin(input)).toBe("ni");
+      }
+    );
+
+    it(
+      "converts ni-up (F198A) to 'ni'",
+      () => {
+        const input = String.fromCodePoint(
+          0xF198A
+        );
+        expect(toLatin(input)).toBe("ni");
+      }
+    );
+
+    it(
+      "converts ni-right (F198B) to 'ni'",
+      () => {
+        const input = String.fromCodePoint(
+          0xF198B
+        );
+        expect(toLatin(input)).toBe("ni");
+      }
+    );
+
+    it(
+      "standard ni CPs do not skip next char",
+      () => {
+        // Standard ni CP followed by a regular
+        // word — should not eat it as an arrow
+        const input =
+          String.fromCodePoint(0xF1989) +
+          ucsur("pona");
+        expect(toLatin(input)).toBe("ni pona");
+      }
+    );
+  });
+
   describe("nasin sitelen kalama (mora-based)", () => {
     const start = String.fromCodePoint(
       START_OF_CARTOUCHE
