@@ -1,7 +1,7 @@
 import React, {
   useRef,
-  useMemo,
   useEffect,
+  useCallback,
 } from "react";
 import {
   useEditor,
@@ -76,42 +76,31 @@ const TextNodeNormalizer = Extension.create({
   },
 });
 
-const STORAGE_KEY = "lipu-sitelen-wawa:doc";
-
-function loadSavedContent():
-  JSONContent | undefined
-{
-  try {
-    const raw =
-      localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      return JSON.parse(raw) as JSONContent;
-    }
-  } catch {
-    // corrupt data; start fresh
-  }
+interface EditorProps {
+  content?: JSONContent;
+  onSave?: (content: JSONContent) => void;
 }
 
-export function Editor() {
-  const savedContent =
-    useMemo(loadSavedContent, []);
+export function Editor({
+  content,
+  onSave,
+}: EditorProps) {
   const saveTimer =
     useRef<ReturnType<typeof setTimeout>>();
+  const latestJson =
+    useRef<JSONContent | null>(null);
+  const onSaveRef = useRef(onSave);
+  onSaveRef.current = onSave;
 
   const editor = useEditor({
-    content: savedContent,
+    content,
     onUpdate({ editor: e }) {
+      const json = e.getJSON();
+      latestJson.current = json;
       clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => {
-        try {
-          localStorage.setItem(
-            STORAGE_KEY,
-            JSON.stringify(e.getJSON())
-          );
-        } catch {
-          // QuotaExceededError or other
-          // storage errors
-        }
+        onSaveRef.current?.(json);
+        latestJson.current = null;
       }, 500);
     },
     editorProps: {
@@ -149,10 +138,15 @@ export function Editor() {
     ],
   });
 
-  useEffect(
-    () => () => clearTimeout(saveTimer.current),
-    []
-  );
+  const flush = useCallback(() => {
+    clearTimeout(saveTimer.current);
+    if (latestJson.current) {
+      onSaveRef.current?.(latestJson.current);
+      latestJson.current = null;
+    }
+  }, []);
+
+  useEffect(() => () => flush(), [flush]);
 
   return (
     <div className="editor-outer">

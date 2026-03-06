@@ -109,16 +109,57 @@ kbd + kbd {
   background: rgba(0, 0, 0, 0.04);
 }
 
-.tab-toggle--active:hover::after {
+.tab-toggle--active:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.tab-toggle--active::before,
+.tab-toggle--active::after {
   content: "";
   position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: calc(1.4rem + 12px);
-  background: rgba(0, 0, 0, 0.04);
-  border-radius: 6px;
+  top: 0;
+  width: 6px;
+  height: 6px;
   pointer-events: none;
+}
+
+.tab-toggle--active::before {
+  left: -6px;
+  background: radial-gradient(
+    circle at 0% 100%,
+    transparent 5px,
+    rgba(0, 0, 0, 0.04) 5.5px
+  );
+}
+
+.tab-toggle--active::after {
+  right: -6px;
+  background: radial-gradient(
+    circle at 100% 100%,
+    transparent 5px,
+    rgba(0, 0, 0, 0.04) 5.5px
+  );
+}
+
+.tab-toggle--active:hover::before {
+  background: radial-gradient(
+    circle at 0% 100%,
+    transparent 5px,
+    rgba(0, 0, 0, 0.08) 5.5px
+  );
+}
+
+.tab-toggle--active:hover::after {
+  background: radial-gradient(
+    circle at 100% 100%,
+    transparent 5px,
+    rgba(0, 0, 0, 0.08) 5.5px
+  );
+}
+
+.tab-toggle--last.tab-toggle--active::after,
+.tab-toggle--last.tab-toggle--active:hover::after {
+  content: none;
 }
 
 /* ── Help panel ──────────────────────────────── */

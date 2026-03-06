@@ -1,0 +1,246 @@
+/* ── Document panel ─────────────────────────── */
+
+.document-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 8px;
+  animation: help-fade-in 0.12s ease-out;
+  display: flex;
+  gap: 6px;
+}
+
+/* ── List wrapper (fade masks) ─────────────── */
+
+.document-panel__list-wrap {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  mask-image: linear-gradient(
+    to bottom,
+    black, black
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    black, black
+  );
+}
+
+.document-panel__list-wrap--fade-top {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black 16px
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black 16px
+  );
+}
+
+.document-panel__list-wrap--fade-bottom {
+  mask-image: linear-gradient(
+    to bottom,
+    black,
+    black calc(100% - 16px),
+    transparent
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    black,
+    black calc(100% - 16px),
+    transparent
+  );
+}
+
+.document-panel__list-wrap--fade-top.document-panel__list-wrap--fade-bottom {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black 16px,
+    black calc(100% - 16px),
+    transparent
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black 16px,
+    black calc(100% - 16px),
+    transparent
+  );
+}
+
+.document-panel__list {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.document-panel__list::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Actions column ────────────────────────── */
+
+.document-panel__actions {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+/* ── Scroll column ─────────────────────────── */
+
+.document-panel__scroll {
+  flex-shrink: 0;
+  display: flex;
+  align-items: stretch;
+  padding: 4px 0;
+  margin: 0 4px;
+}
+
+.scroll-track {
+  width: 3px;
+  position: relative;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 1.5px;
+}
+
+.scroll-dot {
+  position: absolute;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.2);
+  transform: translate(-50%, -50%);
+  transition: top 0.08s ease-out;
+}
+
+/* ── List item ─────────────────────────────── */
+
+.doc-list-item {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  min-height: 1.6rem;
+}
+
+.doc-list-item--active {
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 4px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+}
+
+
+.doc-list-item__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* ── Name label (inactive doc) ─────────────── */
+
+.doc-list-item__label {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 1px 4px;
+  font-size: 1.1rem;
+  line-height: 1.4;
+  color: #444;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-list-item__label:hover {
+  color: #4a7ab5;
+}
+
+/* ── Delete button ─────────────────────────── */
+
+.doc-list-item__delete {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 1rem;
+  line-height: 1;
+  color: #ccc;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.doc-list-item__delete:hover {
+  color: #999;
+}
+
+.doc-list-item__delete--confirm {
+  color: #d44;
+}
+
+.doc-list-item__delete--confirm:hover {
+  color: #c00;
+}
+
+/* ── Name input ────────────────────────────── */
+
+.name-input {
+  position: relative;
+}
+
+.name-input .ProseMirror {
+  outline: none;
+  font-family:
+    "nasin-nanpa-ucsur",
+    "nasin-nanpa",
+    sans-serif;
+  font-feature-settings:
+    "liga" 1, "calt" 1, "ccmp" 1;
+  -webkit-font-variant-ligatures: normal;
+  font-variant-ligatures: normal;
+  font-size: 1.1rem;
+  line-height: 1.4;
+  padding: 1px 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.name-input .ProseMirror:focus {
+  text-overflow: clip;
+  overflow: visible;
+}
+
+.name-input .ProseMirror p {
+  margin: 0;
+}
+
+.name-input .ProseMirror .is-empty::before {
+  content: attr(data-placeholder);
+  color: #ccc;
+  pointer-events: none;
+  float: left;
+  height: 0;
+}

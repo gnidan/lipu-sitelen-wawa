@@ -16,7 +16,7 @@ export function HelpButton({
     <button
       type="button"
       className={
-        "tab-toggle"
+        "tab-toggle tab-toggle--last"
         + (active
           ? " tab-toggle--active"
           : "")
