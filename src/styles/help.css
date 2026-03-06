@@ -203,25 +203,30 @@ kbd + kbd {
   border-top: 1px solid #f0f0f0;
 }
 
-/* ── Help columns ───────────────────────────── */
-
-.help-panel__columns {
-  display: flex;
-  gap: 20px;
-}
-
 /* ── Help grid ───────────────────────────────── */
 
 .help-grid {
-  flex: 1;
   display: grid;
-  grid-template-columns: auto auto 1fr;
-  gap: 4px 6px;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, auto);
+  grid-auto-flow: column;
+  gap: 4px 20px;
   align-items: center;
+  align-content: start;
+}
+
+@media (max-width: 600px) {
+  .help-grid {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: none;
+    grid-auto-flow: row;
+  }
 }
 
 .help-grid__cell {
-  display: contents;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .help-grid__before {

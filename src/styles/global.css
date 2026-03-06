@@ -181,6 +181,24 @@ h1 {
   display: none;
 }
 
+@media (max-width: 600px) {
+  .app--controls-open .app__subtitle {
+    display: none;
+  }
+
+  .app--controls-open .app__toolbar {
+    grid-column: 1 / -1;
+  }
+
+  .app--panel-open .app__title {
+    display: none;
+  }
+
+  .app--panel-open .app__panels {
+    grid-column: 1 / -1;
+  }
+}
+
 .app__main {
   margin-top: 12px;
 }
