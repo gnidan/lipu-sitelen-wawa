@@ -6,6 +6,7 @@ import {
   wordsByCategory,
   wordsByPrefix,
   wordToCodepoint,
+  codepointToWord,
 } from "./";
 
 describe("words", () => {
@@ -56,7 +57,7 @@ describe("words", () => {
   describe("wordsByCategory", () => {
     it("returns many core words", () => {
       const core = wordsByCategory("core");
-      expect(core.length).toBe(122);
+      expect(core.length).toBe(123);
     });
 
     it("returns common words", () => {
@@ -66,7 +67,8 @@ describe("words", () => {
 
     it("returns uncommon words", () => {
       const uncommon = wordsByCategory("uncommon");
-      expect(uncommon.length).toBeGreaterThanOrEqual(10);
+      expect(uncommon.length)
+        .toBeGreaterThanOrEqual(9);
     });
 
     it("returns sandbox words", () => {
@@ -123,7 +125,8 @@ describe("words", () => {
 
   describe("codepoint consistency with ucsur.ts", () => {
     it("matches codepoints in wordToCodepoint", () => {
-      for (const [word, entry] of Object.entries(words)) {
+      for (const [word, entry] of
+        Object.entries(words)) {
         const ucsurCp = wordToCodepoint[word];
         if (ucsurCp !== undefined) {
           expect(entry.codepoint).toBe(ucsurCp);
@@ -136,7 +139,9 @@ describe("words", () => {
         0x300C, 0x300D,
       ]);
       for (const entry of Object.values(words)) {
-        if (SPECIAL_WORD_CPS.has(entry.codepoint)) {
+        if (
+          SPECIAL_WORD_CPS.has(entry.codepoint)
+        ) {
           continue;
         }
         expect(entry.codepoint)
@@ -145,5 +150,36 @@ describe("words", () => {
           .toBeLessThanOrEqual(0xF19FF);
       }
     });
+  });
+
+  describe("effective maps (font-capabilities)", () => {
+    it(
+      "extraWords appear in effective maps",
+      () => {
+        // pake, apeja, kokosila are in
+        // nasin-nanpa extraWords
+        expect(wordToCodepoint["pake"])
+          .toBe(0xF19A0);
+        expect(wordToCodepoint["apeja"])
+          .toBe(0xF19A1);
+        expect(wordToCodepoint["kokosila"])
+          .toBe(0xF1984);
+        expect(words["pake"]).toBeDefined();
+        expect(words["apeja"]).toBeDefined();
+        expect(words["kokosila"]).toBeDefined();
+      }
+    );
+
+    it(
+      "standard ni direction CPs map to ni",
+      () => {
+        expect(codepointToWord[0xF1989])
+          .toBe("ni");
+        expect(codepointToWord[0xF198A])
+          .toBe("ni");
+        expect(codepointToWord[0xF198B])
+          .toBe("ni");
+      }
+    );
   });
 });

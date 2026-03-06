@@ -14,7 +14,7 @@ import {
   applyVariation,
   niDirectionByIndex,
   niDirectionByVerbatim,
-  niDirString,
+  niDirStringEffective,
 } from "../../data";
 import type { WordEntry } from "../../data";
 import {
@@ -153,7 +153,7 @@ function wordToUcsur(
   ) {
     const dir = niDirectionByIndex(variation);
     return dir
-      ? niDirString(cp, dir)
+      ? niDirStringEffective(dir)
       : codepointToChar(cp);
   }
   let text = codepointToChar(cp);

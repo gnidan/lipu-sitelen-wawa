@@ -7,7 +7,7 @@ import { Autocomplete } from "./autocomplete";
 import {
   codepointToChar,
   applyVariation,
-  niDirString,
+  niDirStringEffective,
   niDirectionByIndex,
 } from "../../data";
 
@@ -51,7 +51,7 @@ describe("VariantKeymap", () => {
       const text =
         editor.state.doc.textContent;
       const dir = niDirectionByIndex(3)!;
-      const expected = niDirString(0xF1941, dir);
+      const expected = niDirStringEffective(dir);
       // Should be ni codepoint + arrow, no ZWJ
       expect(text).toBe(expected);
       expect(text).not.toContain("\u200D");

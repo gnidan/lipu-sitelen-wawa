@@ -27,30 +27,60 @@ describe("wordToCodepoint", () => {
     expect(wordToCodepoint["kijetesantakalu"])
       .toBe(0xF1980);
     expect(wordToCodepoint["ku"]).toBe(0xF1988);
-    expect(wordToCodepoint["linluwi"]).toBe(0xF198C);
+    expect(wordToCodepoint["linluwi"]).toBe(0xF19A4);
+    expect(wordToCodepoint["su"]).toBe(0xF19A6);
   });
 
-  it("contains all 141 words", () => {
-    const count = Object.keys(wordToCodepoint).length;
-    expect(count).toBeGreaterThanOrEqual(141);
+  it("contains all 139 standard words", () => {
+    const count =
+      Object.keys(wordToCodepoint).length;
+    expect(count).toBeGreaterThanOrEqual(139);
+  });
+
+  it("does not contain font-specific words", () => {
+    expect(wordToCodepoint["pake"])
+      .toBeUndefined();
+    expect(wordToCodepoint["apeja"])
+      .toBeUndefined();
+    expect(wordToCodepoint["kokosila"])
+      .toBeUndefined();
+  });
+
+  it("maps moved words to standard CPs", () => {
+    expect(wordToCodepoint["majuna"])
+      .toBe(0xF19A2);
+    expect(wordToCodepoint["linluwi"])
+      .toBe(0xF19A4);
+    expect(wordToCodepoint["su"])
+      .toBe(0xF19A6);
   });
 });
 
 describe("codepointToWord", () => {
-  it("is the correct reverse of wordToCodepoint", () => {
-    for (const [word, cp] of Object.entries(
-      wordToCodepoint
+  it("maps every codepoint to a valid word", () => {
+    for (const [cp, word] of Object.entries(
+      codepointToWord
     )) {
-      expect(codepointToWord[cp]).toBe(word);
+      expect(wordToCodepoint[word]).toBe(
+        Number(cp)
+      );
     }
   });
 
-  it("has the same number of entries", () => {
+  it("covers every unique codepoint", () => {
+    const uniqueCps = new Set(
+      Object.values(wordToCodepoint)
+    );
     expect(
       Object.keys(codepointToWord).length
-    ).toBe(
-      Object.keys(wordToCodepoint).length
-    );
+    ).toBe(uniqueCps.size);
+  });
+
+  it("prefers canonical form for synonyms", () => {
+    // ali is a synonym for ale; reverse map
+    // should return "ale"
+    const cp = wordToCodepoint["ale"];
+    expect(codepointToWord[cp]).toBe("ale");
   });
 });
 
