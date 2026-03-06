@@ -17,6 +17,10 @@ import {
 import {
   IndicatorTooltip,
 } from "./IndicatorTooltip";
+import { useDocuments } from "./useDocuments";
+import {
+  DocumentPanel,
+} from "./DocumentPanel";
 import "../styles/global.css";
 
 const DEFAULT_FONT_SIZE = 3.5;
@@ -43,10 +47,16 @@ function loadFontSize(): number {
   return DEFAULT_FONT_SIZE;
 }
 
+type Panel = "lipu-ale" | "sona" | null;
+
 export function App() {
-  const [helpOpen, setHelpOpen] = useState(false);
+  const [activePanel, setActivePanel] =
+    useState<Panel>(null);
   const [controlsOpen, setControlsOpen] =
     useState(false);
+  const [newDocId, setNewDocId] =
+    useState<string | null>(null);
+  const docs = useDocuments();
   const [fontSize, setFontSize] =
     useState(loadFontSize);
   const [tooltipDismissed, setTooltipDismissed] =
@@ -90,9 +100,19 @@ export function App() {
       // ignore
     }
   }, [indicators]);
-  const toggleHelp = useCallback(() => {
-    setHelpOpen((prev) => !prev);
-  }, []);
+  const togglePanel = useCallback(
+    (panel: Panel) => {
+      setActivePanel(
+        (prev) => prev === panel ? null : panel
+      );
+    },
+    []
+  );
+
+  const toggleHelp = useCallback(
+    () => togglePanel("sona"),
+    [togglePanel]
+  );
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -133,7 +153,30 @@ export function App() {
           <h1><SP>lipu+sitelen wawa</SP></h1>
         </div>
         <div className="app__panels">
-          {helpOpen && <HelpPanel />}
+          {activePanel === "sona" && (
+            <HelpPanel />
+          )}
+          {activePanel === "lipu-ale" && (
+            <DocumentPanel
+              index={docs.index}
+              activeId={docs.activeId}
+              onSwitch={(id) => {
+                docs.switchDocument(id);
+                setNewDocId(null);
+              }}
+              onRename={docs.renameDocument}
+              onDelete={(id) => {
+                docs.deleteDocument(id);
+                setNewDocId(null);
+              }}
+              onCreate={() => {
+                const id =
+                  docs.createDocument();
+                setNewDocId(id);
+              }}
+              newDocId={newDocId}
+            />
+          )}
         </div>
         <p className="app__subtitle">
           <SP>o sitelen lon(ni&lt;v)</SP>
@@ -267,14 +310,34 @@ export function App() {
           >
             <SP>lawa</SP>
           </button>
+          <button
+            type="button"
+            className={
+              "tab-toggle"
+              + (activePanel === "lipu-ale"
+                ? " tab-toggle--active"
+                : "")
+            }
+            onClick={() =>
+              togglePanel("lipu-ale")
+            }
+            onMouseDown={(e) =>
+              e.preventDefault()}
+          >
+            <SP>ante+lipu</SP>
+          </button>
           <HelpButton
-            active={helpOpen}
+            active={activePanel === "sona"}
             onToggle={toggleHelp}
           />
         </div>
       </header>
       <main className="app__main">
-        <Editor />
+        <Editor
+          key={docs.activeId}
+          content={docs.activeContent}
+          onSave={docs.saveContent}
+        />
       </main>
       <footer className="app__footer">
         <p>
