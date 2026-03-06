@@ -143,6 +143,12 @@ export function App() {
         + (indicators
           ? ""
           : " app--hide-indicators")
+        + (controlsOpen
+          ? " app--controls-open"
+          : "")
+        + (activePanel
+          ? " app--panel-open"
+          : "")
       }
       style={{
         "--editor-font-size": `${fontSize}rem`,
