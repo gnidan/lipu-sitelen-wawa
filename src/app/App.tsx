@@ -185,7 +185,7 @@ export function App() {
           )}
         </div>
         <p className="app__subtitle">
-          <SP>o sitelen lon(ni&lt;v)</SP>
+          <SP>o sitelen lon ni</SP>
         </p>
         <div className="app__toolbar">
           <div className={
