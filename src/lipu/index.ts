@@ -92,3 +92,10 @@ export {
 export type { GapPosition } from "./provenance";
 export { entryRangeAt, rangeForEntries }
   from "./source-map";
+export { mirrorRange } from "./selection-map";
+export type {
+  BlockMaps,
+  BlockPos,
+  InlineHighlight,
+  MirrorResult,
+} from "./selection-map";
