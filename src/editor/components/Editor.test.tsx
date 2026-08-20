@@ -21,6 +21,10 @@ import {
   wordToCodepoint,
 } from "../../data";
 import { lipuModelKey } from "../extensions/lipu-model";
+import {
+  lipuHistoryKey,
+  sharedUndo,
+} from "../extensions/lipu-history";
 import { focusTracker } from "../focus-tracker";
 import { LIPU_SYNC_META } from "../lipu-sync";
 import {
@@ -802,7 +806,119 @@ describe("SP focus wiring", () => {
   });
 });
 
-// NOTE: the shared-undo wiring pins (rendering the
-// real <Editor> and asserting undo goes through the
-// shared document-level history stack) land with
-// that extension in the Latin-pane PR.
+/**
+ * SHARED-UNDO WIRING. The unit
+ * coverage in lipu-history.test.ts builds its own SP
+ * editor, so it cannot see Editor.tsx's extension
+ * list: these render the ACTUAL component. Dropping
+ * `LipuHistory`, mis-ordering it against `LipuModel`,
+ * or restoring StarterKit's native history must break
+ * one of them.
+ */
+describe("shared undo wiring", () => {
+  afterEach(cleanup);
+
+  function mountEd(onSave: (p: SavePayload) => void) {
+    let tiptap: TiptapEditor | null = null;
+    const r = render(
+      <Editor
+        lipu={emptyLipu()}
+        onSave={onSave}
+        onEditorReady={(e) => {
+          tiptap = e;
+        }}
+      />
+    );
+    return {
+      ...r,
+      editor: () => tiptap as unknown as TiptapEditor,
+    };
+  }
+
+  it(
+    "PM-native history is OFF — undo/redo are " +
+      "not editor commands at all",
+    () => {
+      const { editor } = mountEd(() => {});
+      const cmds = editor().commands as unknown as
+        Record<string, unknown>;
+      expect(cmds.undo).toBeUndefined();
+      expect(cmds.redo).toBeUndefined();
+    }
+  );
+
+  it(
+    "the mounted editor records to the SHARED stack " +
+      "and undo restores through it",
+    () => {
+      const { editor } = mountEd(() => {});
+      act(() => {
+        editor().commands.focus("end");
+        editor().commands.insertContent(
+          codepointToChar(wordToCodepoint["toki"])
+        );
+      });
+      const hist = lipuHistoryKey.getState(
+        editor().state
+      )!;
+      expect(hist.done).toHaveLength(1);
+      act(() => {
+        expect(sharedUndo(editor())).toBe(true);
+      });
+      expect(
+        lipuModelKey.getState(editor().state)!.lipu
+          .blocks[0].anchors
+      ).toHaveLength(0);
+    }
+  );
+
+  it(
+    "undo ADVANCES the version, so the " +
+      "debounced save fires with the RESTORED lipu",
+    () => {
+      vi.useFakeTimers();
+      try {
+        const onSave = vi.fn<
+          (payload: SavePayload) => void
+        >();
+        const { editor } = mountEd(onSave);
+        const before = lipuModelKey.getState(
+          editor().state
+        )!.lipu;
+        act(() => {
+          editor().commands.focus("end");
+          editor().commands.insertContent(
+            codepointToChar(wordToCodepoint["toki"])
+          );
+        });
+        act(() => {
+          vi.advanceTimersByTime(500);
+        });
+        expect(onSave).toHaveBeenCalledTimes(1);
+        expect(
+          onSave.mock.calls[0][0].lipu.blocks[0]
+            .anchors
+        ).toHaveLength(1);
+        act(() => {
+          sharedUndo(editor());
+        });
+        act(() => {
+          vi.advanceTimersByTime(500);
+        });
+        expect(onSave).toHaveBeenCalledTimes(2);
+        expect(
+          onSave.mock.calls[1][0].lipu.blocks[0]
+            .anchors
+        ).toHaveLength(0);
+        // ...and it is the PRE-EDIT state exactly,
+        // not merely a state with no anchors: undo
+        // persists what it restored
+        expect(onSave.mock.calls[1][0].lipu).toEqual(
+          before
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    }
+  );
+});

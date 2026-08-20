@@ -18,6 +18,11 @@ import {
   LipuModel,
   lipuModelKey,
 } from "./lipu-model";
+import {
+  LipuHistory,
+  lipuHistoryKey,
+  sharedUndo,
+} from "./lipu-history";
 import { renderSp } from "../../lipu";
 import type { Lipu } from "../../lipu";
 import { CARTOUCHE_START } from "../../lipu/chars";
@@ -113,11 +118,24 @@ async function blurAndSettle(
   );
 }
 
-// NOTE: the "undo after Enter-Enter leaves the
-// document un-split" pin (undo through the shared
-// document-level history stack) lands with that
-// extension in the Latin-pane PR, alongside its
-// createHistoryEditor helper.
+/** The same editor plus the SHARED lipu-layer
+ *  stack: native history is off, Cmd+Z routes
+ *  through sharedUndo. LipuHistory is declared
+ *  BEFORE LipuModel — TipTap reverses, and the
+ *  history plugin's state must apply AFTER the
+ *  model's. */
+function createHistoryEditor(content = "") {
+  return new Editor({
+    extensions: [
+      LineBreaks,
+      LipuHistory,
+      LipuModel,
+      StarterKit.configure({ history: false }),
+      SitelenPona,
+    ],
+    content,
+  });
+}
 
 function countBreaks(editor: Editor): number {
   let n = 0;
@@ -379,6 +397,40 @@ describe("LineBreaks", () => {
       const text = editor.state.doc.textContent;
       expect(text).not.toContain(tokiChar);
       expect(text).not.toContain(ponaChar);
+      editor.destroy();
+    }
+  );
+
+  it(
+    "undo after Enter-Enter leaves the document " +
+      "un-split",
+    () => {
+      // RE-DERIVED when undo moved to the shared
+      // lipu-layer stack: this used to run through
+      // StarterKit's native history, which is now
+      // OFF on both editors — undo is a lipu-layer
+      // operation. The user-visible behaviour is
+      // unchanged, and the reason is no longer
+      // incidental: the two Enters are one COALESCED
+      // group (same side, inside NEW_GROUP_MS, no
+      // block-count change), so one undo returns to
+      // the pre-run state.
+      const editor = createHistoryEditor(
+        `<p>${ucsur("toki")}</p>`
+      );
+      editor.commands.focus("end");
+
+      pressEnter(editor);
+      pressEnter(editor);
+      expect(countBreaks(editor)).toBe(2);
+      expect(
+        lipuHistoryKey.getState(editor.state)!.done
+      ).toHaveLength(1);
+
+      expect(sharedUndo(editor)).toBe(true);
+
+      expect(editor.state.doc.childCount).toBe(1);
+      expect(countBreaks(editor)).toBe(0);
       editor.destroy();
     }
   );

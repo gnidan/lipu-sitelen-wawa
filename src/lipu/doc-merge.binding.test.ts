@@ -448,7 +448,8 @@ describe("fusion rescue: batch, flat path, mint, " +
     // either way they are prose in the slot now
     expect(out.gaps[1].sp).toContain(MIDDLE_DOT_CH);
     expect(out.gaps[1].spAuthored).toBe(true);
-    // lipu-history holds references: input
+    // the shared undo stack (lipu-history.ts)
+    // holds Lipu REFERENCES, not copies: input
     // immutability IS undo recoverability
     expect(JSON.stringify(prev)).toBe(before);
   });

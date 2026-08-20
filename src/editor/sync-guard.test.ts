@@ -24,6 +24,11 @@ import {
   LipuModel,
   lipuModelKey,
 } from "./extensions/lipu-model";
+import {
+  LipuHistory,
+  lipuHistoryKey,
+  sharedUndo,
+} from "./extensions/lipu-history";
 import { LIPU_SYNC_META } from "./lipu-sync";
 import * as guard from "./sync-guard";
 import { lipuToContent } from "./lipu-doc";
@@ -93,11 +98,22 @@ function mkEditor(
   });
 }
 
-// NOTE: the "recovery is invisible to undo" pin
-// (a correction never enters the shared undo stack)
-// lands with the shared history extension in the
-// Latin-pane PR, alongside its mkHistoryEditor
-// helper.
+/** The same editor plus the SHARED lipu-layer
+ *  stack. LipuHistory is declared BEFORE LipuModel —
+ *  TipTap reverses, and the history plugin's state
+ *  must apply AFTER the model's. */
+function mkHistoryEditor(lipu: Lipu): Editor {
+  return new Editor({
+    extensions: [
+      LipuHistory,
+      LipuModel.configure({ initialLipu: lipu }),
+      StarterKit.configure({ history: false }),
+      SitelenPona,
+      Verbatim,
+    ],
+    content: lipuToContent(lipu),
+  });
+}
 
 function adopt(ed: Editor, lipu: Lipu): void {
   ed.view.dispatch(
@@ -167,6 +183,54 @@ describe("verifySpProjection", () => {
     expect(JSON.stringify(ed.getJSON())).toBe(
       JSON.stringify(lipuToContent(bogus))
     );
+  });
+
+  it("the recovery is INVISIBLE TO UNDO: it never " +
+     "enters the history stack", () => {
+    // RE-DERIVED when undo moved to the shared
+    // lipu-layer stack. This used to run through
+    // StarterKit's native history, which is now
+    // OFF; undo is a lipu-layer operation, so the
+    // property is now carried by the SHARED stack's
+    // identity check: a correction re-adopts the
+    // model's OWN lipu, so there is nothing to undo
+    // and no entry is minted. `addToHistory: false`
+    // on the correction is inert now — kept as
+    // documented intent, not relied on.
+    const lipu = mkLipu([["toki"]]);
+    const bogus = mkLipu([["toki", "pona"]]);
+    const ed = mkHistoryEditor(lipu);
+    adopt(ed, bogus);
+    // the ADOPTION is a genuine edit: one entry
+    expect(
+      lipuHistoryKey.getState(ed.state)!.done
+    ).toHaveLength(1);
+
+    expect(guard.verifySpProjection(ed)).toBe(false);
+    expect(JSON.stringify(ed.getJSON())).toBe(
+      JSON.stringify(lipuToContent(bogus))
+    );
+    // the CORRECTION minted nothing
+    expect(
+      lipuHistoryKey.getState(ed.state)!.done
+    ).toHaveLength(1);
+
+    // Cmd-Z pops the ADOPTION, not the correction:
+    // one undo lands on a doc and a model that
+    // AGREE, and the guard is clean. Were the
+    // correction recorded, this undo would be the
+    // dead step — doc and model both left on the
+    // bogus lipu, with the real edit still needing
+    // a second Cmd-Z.
+    expect(sharedUndo(ed)).toBe(true);
+    expect(
+      lipuModelKey.getState(ed.state)!.lipu
+    ).toEqual(lipu);
+    expect(JSON.stringify(ed.getJSON())).toBe(
+      JSON.stringify(lipuToContent(lipu))
+    );
+    expect(guard.verifySpProjection(ed)).toBe(true);
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 
   it("never dispatches a ZERO-STEP correction " +

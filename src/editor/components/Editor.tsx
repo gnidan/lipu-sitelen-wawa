@@ -44,6 +44,9 @@ import {
   lipuModelKey,
 } from "../extensions/lipu-model";
 import {
+  LipuHistory,
+} from "../extensions/lipu-history";
+import {
   MirrorHighlight,
 } from "../extensions/mirror-highlight";
 import {
@@ -249,11 +252,14 @@ export function Editor({
       // which itself still beats the core
       // splitBlock keymap.
       LineBreaks,
-      // NOTE: the shared document-level undo stack
-      // (a lipu-layer history extension, declared
-      // between LineBreaks and LipuModel) lands with
-      // the Latin pane; until then the editor keeps
-      // StarterKit's native history below.
+      // DECLARED BEFORE LipuModel, which is
+      // what puts its plugin state AFTER lipu-model's
+      // in the apply chain (TipTap reverses the
+      // extension array). Ordered the other way it
+      // reads an un-advanced model version and
+      // records nothing; lipu-history.ts tripwires on
+      // that shape and lipu-history.test.ts pins it.
+      LipuHistory,
       LipuModel.configure({
         // LOAD-BOUNDARY NORMALIZATION:
         // classify FIRST (skipped when lipuClassified
@@ -271,6 +277,13 @@ export function Editor({
       }),
       MirrorHighlight,
       StarterKit.configure({
+        // PM-native history is OFF on BOTH editors.
+        // Undo is a lipu-layer operation now — one
+        // shared stack hosted by the SP editor:
+        // a doc-step history cannot see Latin-local
+        // edits at all (they carry zero SP steps) and
+        // would fight the shared stack for Cmd+Z.
+        history: false,
         bold: false,
         italic: false,
         strike: false,
