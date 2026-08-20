@@ -2,7 +2,10 @@ import React, {
   useState,
   useCallback,
   useEffect,
+  useRef,
 } from "react";
+import type { Editor as TiptapEditor } from
+  "@tiptap/core";
 import { FaGithub } from "react-icons/fa";
 import { Editor } from "../editor";
 import {
@@ -21,6 +24,11 @@ import { useDocuments } from "./useDocuments";
 import {
   DocumentPanel,
 } from "./DocumentPanel";
+import { LatinPane } from "./LatinPane";
+import {
+  FORCE,
+  latinLineBreaksKey,
+} from "../editor/latin/latin-line-breaks";
 import "../styles/global.css";
 
 const DEFAULT_FONT_SIZE = 3.5;
@@ -31,6 +39,8 @@ const FONT_SIZE_KEY =
   "lipu-sitelen-wawa:font-size";
 const INDICATORS_KEY =
   "lipu-sitelen-wawa:indicators";
+const LATIN_PANE_KEY =
+  "lipu-sitelen-wawa:latin-pane";
 
 function loadFontSize(): number {
   try {
@@ -72,6 +82,78 @@ export function App() {
         return true;
       }
     });
+  const [latinPane, setLatinPane] =
+    useState(() => {
+      try {
+        return localStorage.getItem(
+          LATIN_PANE_KEY) === "on";
+      } catch {
+        return false;
+      }
+    });
+  // stays mounted through the close animation
+  const [paneMounted, setPaneMounted] =
+    useState(() => latinPane);
+  const [editorInst, setEditorInst] =
+    useState<TiptapEditor | null>(null);
+  // the satellite instance, held only so the close
+  // click below can reach it for its true blur
+  const [latinInst, setLatinInst] =
+    useState<TiptapEditor | null>(null);
+
+  // transient: set only by the toggle click
+  // handler, so the slide animation plays on an
+  // actual user toggle and never replays on mount
+  // (StrictMode double-invoke) or on editor
+  // remount (doc switch) under a steady-open pane
+  const [paneAnim, setPaneAnim] = useState<
+    "opening" | "closing" | null
+  >(null);
+  const animTimer = useRef<
+    ReturnType<typeof setTimeout> | undefined
+  >(undefined);
+
+  const togglePane = () => {
+    clearTimeout(animTimer.current);
+    if (!latinPane) {
+      setPaneMounted(true);
+      setPaneAnim("opening");
+      animTimer.current = setTimeout(() => {
+        setPaneAnim(null);
+      }, 300);
+      setLatinPane(true);
+    } else {
+      // Closing the pane is a TRUE BLUR for the
+      // Latin editor — pending runs
+      // crystallize synchronously at close-click
+      // (no peer to defer for), then unmount. A
+      // deferred settle would be too late: the
+      // editor is destroyed by the unmount timer,
+      // and its dwelled run would die with it.
+      if (
+        latinInst &&
+        !latinInst.isDestroyed
+      ) {
+        latinInst.view.dispatch(
+          latinInst.state.tr.setMeta(
+            latinLineBreaksKey,
+            FORCE
+          )
+        );
+      }
+      setPaneAnim("closing");
+      animTimer.current = setTimeout(() => {
+        setPaneAnim(null);
+        setPaneMounted(false);
+      }, 300);
+      setLatinPane(false);
+    }
+  };
+
+  useEffect(
+    () => () => clearTimeout(animTimer.current),
+    []
+  );
 
   useEffect(() => {
     try {
@@ -100,6 +182,20 @@ export function App() {
       // ignore
     }
   }, [indicators]);
+
+  useEffect(() => {
+    try {
+      if (latinPane) {
+        localStorage.setItem(
+          LATIN_PANE_KEY, "on"
+        );
+      } else {
+        localStorage.removeItem(LATIN_PANE_KEY);
+      }
+    } catch {
+      // ignore
+    }
+  }, [latinPane]);
   const togglePanel = useCallback(
     (panel: Panel) => {
       setActivePanel(
@@ -339,12 +435,78 @@ export function App() {
         </div>
       </header>
       <main className="app__main">
-        <Editor
-          key={docs.activeId}
-          lipu={docs.activeLipu}
-          lipuClassified={docs.activeLipuClassified}
-          onSave={docs.savePayload}
-        />
+        <div
+          className={
+            "app__workspace" +
+            (latinPane
+              ? " app__workspace--split"
+              : "") +
+            (paneAnim === "opening"
+              ? " app__workspace--opening"
+              : "") +
+            (paneAnim === "closing"
+              ? " app__workspace--closing"
+              : "")
+          }
+        >
+          <Editor
+            key={docs.activeId}
+            lipu={docs.activeLipu}
+            lipuClassified={docs.activeLipuClassified}
+            onSave={docs.savePayload}
+            onEditorReady={setEditorInst}
+          />
+          {paneMounted && (
+            // Keyed by document, exactly like
+            // the SP editor above. A doc switch
+            // remounts the pane (and with it the
+            // satellite editor), so the transient
+            // editor===null window during the SP
+            // remount can never leave a live Latin
+            // editor wired to a destroyed SP one.
+            // (prefixed: the SP editor above is a
+            // SIBLING keyed by the same id, and two
+            // siblings may not share a key)
+            <LatinPane
+              key={"latin-" + docs.activeId}
+              editor={editorInst}
+              onLatinEditorReady={setLatinInst}
+            />
+          )}
+          <button
+            type="button"
+            className={
+              "tab-toggle tab-toggle--side"
+              + (latinPane
+                ? " tab-toggle--active"
+                : "")
+            }
+            onClick={() => {
+              const wasOpen = latinPane;
+              togglePane();
+              const mobile = window.matchMedia(
+                "(max-width: 600px)"
+              ).matches;
+              if (!wasOpen && mobile) {
+                // stacked layout only: the pane
+                // opens below the fold
+                setTimeout(() => {
+                  document
+                    .querySelector(".latin-pane")
+                    ?.scrollIntoView({
+                      behavior: "smooth",
+                      block: "nearest",
+                    });
+                }, 0);
+              }
+            }}
+            onMouseDown={(e) =>
+              e.preventDefault()}
+            aria-label="sitelen Lasina"
+          >
+            <SP>sitelen[la:=sina:=]</SP>
+          </button>
+        </div>
       </main>
       <footer className="app__footer">
         <p>
