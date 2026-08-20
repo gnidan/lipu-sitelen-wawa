@@ -19,6 +19,8 @@ import {
   StructuralChars,
 } from "./structural-chars";
 import { Verbatim } from "./verbatim";
+import { focusTracker } from "../focus-tracker";
+import type { DecorationSet } from "@tiptap/pm/view";
 import {
   VerbatimToggle,
   verbatimTogglePluginKey,
@@ -504,4 +506,46 @@ describe("ni direction buffering", () => {
       editor.destroy();
     }
   );
+});
+
+/**
+ * The POPUP is gated on peer
+ * focus (AutocompletePopup.tsx), the composing-text
+ * DECORATION is NOT. That decoration is the global
+ * ligature suppressor — it keeps the sitelen pona
+ * font from shaping ordinary Latin letters into
+ * glyphs — and it serves every editor built on this
+ * extension, NameInput included. Gating it on SP
+ * focus would break them. Any future per-view gating
+ * must name its recompute trigger.
+ */
+describe("composing-text decoration is UNGATED", () => {
+  it("survives the Latin pane holding focus", () => {
+    const editor = createEditor("<p></p>");
+    focusTracker.reset();
+    focusTracker.notifyFocus("sp");
+    editor.commands.focus("end");
+    editor.commands.insertContent("tok");
+
+    const plugin = autocompletePluginKey.get(
+      editor.state
+    )!;
+    const decosOf = (): number => {
+      const set = plugin.props.decorations!.call(
+        plugin,
+        editor.state
+      );
+      return set
+        ? (set as DecorationSet).find().length
+        : 0;
+    };
+    const before = decosOf();
+    expect(before).toBeGreaterThan(0);
+
+    focusTracker.notifyFocus("latin");
+    expect(decosOf()).toBe(before);
+
+    focusTracker.reset();
+    editor.destroy();
+  });
 });

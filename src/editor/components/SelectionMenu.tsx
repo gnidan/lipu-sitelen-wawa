@@ -9,7 +9,13 @@ import {
   Plugin,
   PluginKey,
   type EditorState,
+  type Transaction,
 } from "@tiptap/pm/state";
+import { Fragment } from "@tiptap/pm/model";
+import type {
+  Node as PmNode,
+  Schema,
+} from "@tiptap/pm/model";
 import {
   wordToCodepoint,
   codepointToChar,
@@ -48,6 +54,10 @@ import {
   SP,
   Verbatim,
 } from "../../components/SitelenPona";
+import {
+  blockText as parentBlockText,
+} from "../extensions/structural-indicators";
+import { focusTracker } from "../focus-tracker";
 
 export const selectionMenuPluginKey = new PluginKey(
   "selectionMenu"
@@ -208,7 +218,7 @@ function detectOverlappingWrap(
   if (!parent.isTextblock) return null;
 
   const blockStart = $from.start();
-  const blockText = parent.textContent;
+  const blockText = parentBlockText(parent);
 
   if (hasStart && !hasEnd) {
     // Selection contains START, find END after
@@ -299,6 +309,17 @@ function detectOverlappingWrap(
   return null;
 }
 
+/**
+ * `text` must be offset-preserving relative to
+ * `from` (each doc position from `from` maps to
+ * exactly one `text` index) — the returned
+ * `wrapFrom`/`wrapTo` are computed as `from +
+ * <string offset>`. Callers must build `text` with
+ * a one-char-per-leaf placeholder (see
+ * `blockText` in structural-indicators.ts) so a
+ * hardBreak inside the range doesn't shift doc
+ * positions relative to string offsets.
+ */
 function detectSelectedWrap(
   text: string,
   from: number,
@@ -338,7 +359,7 @@ function detectSurroundingWrap(
   if (!parent.isTextblock) return null;
 
   const blockStart = $from.start();
-  const blockText = parent.textContent;
+  const blockText = parentBlockText(parent);
   const relFrom = from - blockStart;
   const relTo = to - blockStart;
 
@@ -445,7 +466,7 @@ function expandSelectionRange(
   }
 
   const blockStart = $from.start();
-  const blockText = $from.parent.textContent;
+  const blockText = parentBlockText($from.parent);
   const cps = [...codepoints(blockText)];
   const relFrom = from - blockStart;
   const relTo = to - blockStart;
@@ -706,7 +727,16 @@ function analyzeSelection(
     sel.to
   );
 
-  const text = state.doc.textBetween(from, to);
+  // Offset-preserving: detectSelectedWrap below
+  // computes doc positions as `from + <string
+  // offset into text>`, which only holds when a
+  // hardBreak contributes exactly one char here
+  // (matching its one doc position) instead of
+  // the zero chars plain textBetween would give
+  // it.
+  const text = state.doc.textBetween(
+    from, to, undefined, "￼"
+  );
   if (text.length === 0) return null;
 
   // Single glyph with variants check
@@ -826,7 +856,7 @@ function analyzeSelection(
 
   if ($from.parent.isTextblock) {
     const blockStart = $from.start();
-    const blockText = $from.parent.textContent;
+    const blockText = parentBlockText($from.parent);
     const relFrom = from - blockStart;
 
     const textBefore = blockText.substring(
@@ -912,7 +942,7 @@ function analyzeSelection(
     $to.parent.isTextblock && !adjacentLongGlyph
   ) {
     const blockStart = $to.start();
-    const blockText = $to.parent.textContent;
+    const blockText = parentBlockText($to.parent);
     const relTo = to - blockStart;
 
     const textAfter = blockText.substring(relTo);
@@ -1069,7 +1099,7 @@ function analyzeSelection(
       const $lwf = state.doc.resolve(lwf);
       if ($lwf.parent.isTextblock) {
         const bs = $lwf.start();
-        const bt = $lwf.parent.textContent;
+        const bt = parentBlockText($lwf.parent);
         const before =
           bt.substring(0, lwf - bs);
         const cps = [...codepoints(before)];
@@ -1193,7 +1223,11 @@ function analyzeSelection(
   }
 
   return {
-    text,
+    // Drop the offset-preserving placeholder
+    // before this reaches any consumer — it's
+    // only needed for the position arithmetic
+    // above, never for display.
+    text: text.replace(/￼/g, ""),
     from,
     to,
     singleGlyphWithVariants,
@@ -1803,6 +1837,93 @@ export function createSelectionMenuPlugin() {
 }
 
 // ── Action functions ────────────────────────────
+//
+// Every action below rebuilds its target range as a
+// plain string (extract → transform → reinsert). A
+// hardBreak leaf inside that range has no character
+// of its own, so a plain `textBetween` extraction
+// silently drops it and the reinsert deletes it from
+// the document. Each extraction here instead passes
+// `BREAK` as the leafText so a hardBreak contributes
+// exactly one opaque placeholder char that survives
+// the string transform; `insertPreservingBreaks`
+// then turns every `BREAK` back into a real hardBreak
+// node when writing the result back into the doc.
+
+/**
+ * U+FFFC (object replacement character): the
+ * placeholder used to keep hardBreak leaves alive
+ * through a string round-trip. Matches no UCSUR
+ * control char, ni arrow, word char, or Latin letter
+ * (verified char class by char class), so `toVerbatim`/`fromVerbatim`
+ * and the codepoint filters below all pass it through
+ * unrecognized rather than mangling it.
+ */
+const BREAK = "￼";
+const BREAK_CP = 0xfffc;
+
+/**
+ * Replace [from, to) with `text`, where `BREAK` marks
+ * a hardBreak to reinsert as a real node. Keeps soft
+ * breaks alive through the string-rebuild actions
+ * below instead of silently deleting them.
+ */
+function insertPreservingBreaks(
+  tr: Transaction,
+  schema: Schema,
+  text: string,
+  from: number,
+  to: number
+): void {
+  const parts = text.split(BREAK);
+  const nodes: PmNode[] = [];
+  parts.forEach((part, i) => {
+    if (i > 0) {
+      nodes.push(schema.nodes.hardBreak.create());
+    }
+    if (part.length > 0) {
+      nodes.push(schema.text(part));
+    }
+  });
+  tr.replaceWith(from, to, Fragment.from(nodes));
+}
+
+/**
+ * Extract UCSUR word glyphs (+ optional VS, or ZWJ +
+ * ni arrow) from `text`, stripping everything else
+ * (existing joiners, control chars, `BREAK`). Used to
+ * rebuild a glyph sequence joined by a stacking/
+ * scaling/ZWJ joiner.
+ */
+function extractGlyphTokens(text: string): string[] {
+  const glyphs: string[] = [];
+  const cpIter = [...codepoints(text)];
+  for (let i = 0; i < cpIter.length; i++) {
+    const [cp] = cpIter[i];
+    if (!isWordGlyph(cp)) continue;
+    let glyph = String.fromCodePoint(cp);
+    if (i + 1 < cpIter.length) {
+      const [nextCp] = cpIter[i + 1];
+      if (isVariationSelector(nextCp)) {
+        glyph += String.fromCodePoint(nextCp);
+        i++;
+      } else if (
+        nextCp === ZWJ &&
+        i + 2 < cpIter.length &&
+        isNiArrowCp(cpIter[i + 2][0])
+      ) {
+        glyph +=
+          String.fromCodePoint(ZWJ) +
+          String.fromCodePoint(
+            cpIter[i + 2][0]
+          );
+        i += 2;
+      }
+    }
+    glyphs.push(glyph);
+  }
+  return glyphs;
+}
 
 function wrapInCartouche(
   editor: Editor,
@@ -1811,15 +1932,21 @@ function wrapInCartouche(
 ): void {
   const text = editor.state.doc.textBetween(
     from,
-    to
+    to,
+    undefined,
+    BREAK
   );
 
   // Preserve internal structure (joiners, long
-  // glyph markers, VS). Strip existing cartouche
-  // markers and non-UCSUR chars (spaces).
+  // glyph markers, VS, hardBreaks). Strip existing
+  // cartouche markers and non-UCSUR chars (spaces).
   const inner: string[] = [];
   let hasContent = false;
   for (const [cp] of codepoints(text)) {
+    if (cp === BREAK_CP) {
+      inner.push(BREAK);
+      continue;
+    }
     if (
       isVariationSelector(cp) ||
       cp === ZWJ ||
@@ -1854,10 +1981,9 @@ function wrapInCartouche(
 
   const result = start + inner.join("") + end;
 
-  const tr = editor.state.tr.insertText(
-    result,
-    from,
-    to
+  const tr = editor.state.tr;
+  insertPreservingBreaks(
+    tr, editor.schema, result, from, to
   );
   tr.setMeta(selectionMenuPluginKey, null);
   editor.view.dispatch(tr);
@@ -1872,7 +1998,9 @@ function wrapInLongGlyph(
 ): void {
   const text = editor.state.doc.textBetween(
     from,
-    to
+    to,
+    undefined,
+    BREAK
   );
   const startChar = String.fromCodePoint(
     START_OF_LONG_GLYPH
@@ -1887,7 +2015,10 @@ function wrapInLongGlyph(
     if (adjacent.side === "before") {
       // END is right before selection; replace
       // END + selection with selection + END
-      const tr = editor.state.tr.insertText(
+      const tr = editor.state.tr;
+      insertPreservingBreaks(
+        tr,
+        editor.schema,
         text + endChar,
         adjacent.markerPos,
         to
@@ -1900,7 +2031,10 @@ function wrapInLongGlyph(
     // selection + START with START + selection
     const markerLen =
       START_OF_LONG_GLYPH > 0xffff ? 2 : 1;
-    const tr = editor.state.tr.insertText(
+    const tr = editor.state.tr;
+    insertPreservingBreaks(
+      tr,
+      editor.schema,
       startChar + text,
       from,
       adjacent.markerPos + markerLen
@@ -1917,9 +2051,14 @@ function wrapInLongGlyph(
     const container =
       editor.state.doc.textBetween(
         precedingGlyphFrom,
-        from
+        from,
+        undefined,
+        BREAK
       );
-    const tr = editor.state.tr.insertText(
+    const tr = editor.state.tr;
+    insertPreservingBreaks(
+      tr,
+      editor.schema,
       container + startChar + text + endChar,
       precedingGlyphFrom,
       to
@@ -1966,7 +2105,10 @@ function wrapInLongGlyph(
   );
   const content = text.substring(containerEnd);
 
-  const tr = editor.state.tr.insertText(
+  const tr = editor.state.tr;
+  insertPreservingBreaks(
+    tr,
+    editor.schema,
     container + startChar + content + endChar,
     from,
     to
@@ -1983,46 +2125,33 @@ function joinWithJoiner(
 ): void {
   const text = editor.state.doc.textBetween(
     from,
-    to
+    to,
+    undefined,
+    BREAK
   );
   const joiner = String.fromCodePoint(joinerCp);
 
-  // Extract UCSUR word glyphs (+ optional VS),
-  // stripping existing joiners/control chars
-  const glyphs: string[] = [];
-  const cpIter = [...codepoints(text)];
-  for (let i = 0; i < cpIter.length; i++) {
-    const [cp] = cpIter[i];
-    if (!isWordGlyph(cp)) continue;
-    let glyph = String.fromCodePoint(cp);
-    if (i + 1 < cpIter.length) {
-      const [nextCp] = cpIter[i + 1];
-      if (isVariationSelector(nextCp)) {
-        glyph += String.fromCodePoint(nextCp);
-        i++;
-      } else if (
-        nextCp === ZWJ &&
-        i + 2 < cpIter.length &&
-        isNiArrowCp(cpIter[i + 2][0])
-      ) {
-        glyph +=
-          String.fromCodePoint(ZWJ) +
-          String.fromCodePoint(
-            cpIter[i + 2][0]
-          );
-        i += 2;
-      }
-    }
-    glyphs.push(glyph);
-  }
+  // Joiners never sit adjacent to a break: extract
+  // and join glyphs within each line segment
+  // separately, then rejoin segments on BREAK so the
+  // hardBreak survives un-joined between them.
+  const segments = text.split(BREAK);
+  const glyphSegments = segments.map(
+    extractGlyphTokens
+  );
+  const totalGlyphs = glyphSegments.reduce(
+    (n, g) => n + g.length,
+    0
+  );
+  if (totalGlyphs < 2) return;
 
-  if (glyphs.length < 2) return;
+  const result = glyphSegments
+    .map((g) => g.join(joiner))
+    .join(BREAK);
 
-  const result = glyphs.join(joiner);
-  const tr = editor.state.tr.insertText(
-    result,
-    from,
-    to
+  const tr = editor.state.tr;
+  insertPreservingBreaks(
+    tr, editor.schema, result, from, to
   );
   tr.setMeta(selectionMenuPluginKey, null);
   editor.view.dispatch(tr);
@@ -2035,7 +2164,9 @@ function unwrapCartouche(
 ): void {
   const text = editor.state.doc.textBetween(
     wrapFrom,
-    wrapTo
+    wrapTo,
+    undefined,
+    BREAK
   );
   const cleaned: string[] = [];
   for (const [cp] of codepoints(text)) {
@@ -2049,7 +2180,10 @@ function unwrapCartouche(
     cleaned.push(String.fromCodePoint(cp));
   }
 
-  const tr = editor.state.tr.insertText(
+  const tr = editor.state.tr;
+  insertPreservingBreaks(
+    tr,
+    editor.schema,
     cleaned.join(""),
     wrapFrom,
     wrapTo
@@ -2065,7 +2199,9 @@ function unwrapLongGlyph(
 ): void {
   const text = editor.state.doc.textBetween(
     wrapFrom,
-    wrapTo
+    wrapTo,
+    undefined,
+    BREAK
   );
   const cleaned: string[] = [];
   for (const [cp] of codepoints(text)) {
@@ -2078,7 +2214,10 @@ function unwrapLongGlyph(
     cleaned.push(String.fromCodePoint(cp));
   }
 
-  const tr = editor.state.tr.insertText(
+  const tr = editor.state.tr;
+  insertPreservingBreaks(
+    tr,
+    editor.schema,
     cleaned.join(""),
     wrapFrom,
     wrapTo
@@ -2099,9 +2238,12 @@ function shrinkLongGlyphTail(
     END_OF_LONG_GLYPH > 0xffff ? 2 : 1;
   const content =
     editor.state.doc.textBetween(
-      from, wrapTo - endLen
+      from, wrapTo - endLen, undefined, BREAK
     );
-  const tr = editor.state.tr.insertText(
+  const tr = editor.state.tr;
+  insertPreservingBreaks(
+    tr,
+    editor.schema,
     endChar + content,
     from,
     wrapTo
@@ -2117,7 +2259,9 @@ function removeJoiners(
 ): void {
   const text = editor.state.doc.textBetween(
     from,
-    to
+    to,
+    undefined,
+    BREAK
   );
   const cleaned: string[] = [];
   for (const [cp] of codepoints(text)) {
@@ -2125,7 +2269,10 @@ function removeJoiners(
     cleaned.push(String.fromCodePoint(cp));
   }
 
-  const tr = editor.state.tr.insertText(
+  const tr = editor.state.tr;
+  insertPreservingBreaks(
+    tr,
+    editor.schema,
     cleaned.join(""),
     from,
     to
@@ -2168,7 +2315,9 @@ function convertToVerbatimAction(
         to: blockTo,
         text: editor.state.doc.textBetween(
           blockFrom,
-          blockTo
+          blockTo,
+          undefined,
+          BREAK
         ),
       });
     }
@@ -2178,18 +2327,45 @@ function convertToVerbatimAction(
   for (let i = blocks.length - 1; i >= 0; i--) {
     const block = blocks[i];
     const verbatim = toVerbatim(block.text);
-    tr.insertText(
-      verbatim, block.from, block.to
+    insertPreservingBreaks(
+      tr,
+      editor.schema,
+      verbatim,
+      block.from,
+      block.to
     );
   }
 
-  // Add mark across the full mapped range
+  // Add the mark to text nodes only. A single
+  // range-wide addMark would also land on the
+  // hardBreak nodes `insertPreservingBreaks` just
+  // inserted above — ProseMirror's addMark checks
+  // the PARENT's allowsMarkType, not the child's, so
+  // it happily marks a leaf node whose type doesn't
+  // even declare the mark. `lipuToContent` never
+  // produces a marked hardBreak, so that would
+  // desync this doc from its lipu mirror. Walk text
+  // nodes individually and skip everything else.
   const mappedFrom = tr.mapping.map(from);
   const mappedTo = tr.mapping.map(to);
-  tr.addMark(
+  tr.doc.nodesBetween(
     mappedFrom,
     mappedTo,
-    markType.create()
+    (node, pos) => {
+      if (!node.isText) return;
+      const nodeFrom = Math.max(mappedFrom, pos);
+      const nodeTo = Math.min(
+        mappedTo,
+        pos + node.nodeSize
+      );
+      if (nodeFrom < nodeTo) {
+        tr.addMark(
+          nodeFrom,
+          nodeTo,
+          markType.create()
+        );
+      }
+    }
   );
   tr.setMeta(selectionMenuPluginKey, null);
   editor.view.dispatch(tr);
@@ -2229,7 +2405,9 @@ function convertFromVerbatimAction(
         to: blockTo,
         text: editor.state.doc.textBetween(
           blockFrom,
-          blockTo
+          blockTo,
+          undefined,
+          BREAK
         ),
       });
     }
@@ -2239,7 +2417,13 @@ function convertFromVerbatimAction(
   for (let i = blocks.length - 1; i >= 0; i--) {
     const block = blocks[i];
     const sp = fromVerbatim(block.text);
-    tr.insertText(sp, block.from, block.to);
+    insertPreservingBreaks(
+      tr,
+      editor.schema,
+      sp,
+      block.from,
+      block.to
+    );
   }
 
   // Remove mark across the full mapped range
@@ -2839,15 +3023,41 @@ export function SelectionMenu({
     }
   }, [activeActionIndex]);
 
+  // The third SP blur consumer, on
+  // the same deferral as the other two. The
+  // retired requestAnimationFrame + isFocused
+  // guess is replaced by the FocusTracker's
+  // settle, which is authoritative about where
+  // focus went: the menu survives a blur the SP
+  // pane itself answers (a popup click that
+  // refocuses the editor) and is torn down for
+  // anything else — a true blur, or a hop to the
+  // Latin pane, where this SP selection is no
+  // longer the thing being acted on.
   useEffect(() => {
+    const tearDown = () => {
+      setAnalysis(null);
+      setActions([]);
+      setActiveActionIndex(0);
+      setCoords(null);
+    };
     const onBlur = () => {
-      requestAnimationFrame(() => {
-        if (!editor.isFocused) {
-          setAnalysis(null);
-          setActions([]);
-          setActiveActionIndex(0);
-          setCoords(null);
-        }
+      // NameInput builds its own editor out of
+      // these same extensions, and it is NOT a
+      // pane: its blur can never be a pane hop, so
+      // it tears down synchronously (its menu is
+      // portaled to the body — leaving it up hangs
+      // it over the app) and never borrows the
+      // pane's single pendingBlur slot.
+      if (!focusTracker.isSpView(editor.view)) {
+        tearDown();
+        return;
+      }
+      focusTracker.notifyBlur("sp", (now) => {
+        // The menu survives only a blur the SP pane
+        // itself answered — a popup click that
+        // refocuses this editor.
+        if (now !== "sp") tearDown();
       });
     };
     editor.on("blur", onBlur);

@@ -21,6 +21,7 @@ import {
 import {
   AutocompletePopup,
 } from "./AutocompletePopup";
+import { focusTracker } from "../focus-tracker";
 
 function createEditor(content = "") {
   return new Editor({
@@ -146,4 +147,114 @@ describe("AutocompletePopup", () => {
     }
   );
 
+});
+
+/**
+ * The POPUP is
+ * render-gated on PEER focus, so typing in the Latin
+ * pane can never sprout an SP suggestion list over
+ * the sitelen pona side. The gate is on the peer
+ * holding focus, NOT on "the SP editor is
+ * unfocused": a click into the popup itself blurs
+ * the SP editor to null and must keep working
+ * exactly as it does today.
+ */
+describe("AutocompletePopup peer-focus gate", () => {
+  afterEach(() => {
+    cleanup();
+    focusTracker.reset();
+  });
+
+  it("hides while the LATIN pane holds focus and " +
+     "comes back when the SP pane regains it", () => {
+    const editor = createEditor("<p></p>");
+    focusTracker.reset();
+    focusTracker.notifyFocus("sp");
+
+    const { container } = render(
+      <AutocompletePopup editor={editor as any} />
+    );
+
+    act(() => {
+      editor.commands.focus("end");
+      editor.commands.insertContent("tok");
+    });
+    expect(
+      container.querySelector(".autocomplete-popup")
+    ).toBeTruthy();
+
+    act(() => {
+      focusTracker.notifyFocus("latin");
+    });
+    expect(
+      container.querySelector(".autocomplete-popup")
+    ).toBeNull();
+
+    act(() => {
+      focusTracker.notifyFocus("sp");
+    });
+    expect(
+      container.querySelector(".autocomplete-popup")
+    ).toBeTruthy();
+
+    editor.destroy();
+  });
+
+  it("a NON-pane popup (NameInput) is never " +
+     "peer-gated: it shares the extension, not " +
+     "the pane", () => {
+    const editor = createEditor("<p></p>");
+    const pane = createEditor("<p></p>");
+    focusTracker.reset();
+    focusTracker.claimSpView(pane.view);
+
+    const { container } = render(
+      <AutocompletePopup editor={editor as any} />
+    );
+    act(() => {
+      editor.commands.focus("end");
+      editor.commands.insertContent("tok");
+    });
+    expect(
+      container.querySelector(".autocomplete-popup")
+    ).toBeTruthy();
+
+    act(() => {
+      focusTracker.notifyFocus("latin");
+    });
+    // still up: this popup belongs to an editor
+    // that is not the SP pane, so "the peer holds
+    // focus" says nothing about it
+    expect(
+      container.querySelector(".autocomplete-popup")
+    ).toBeTruthy();
+
+    focusTracker.claimSpView(null);
+    pane.destroy();
+    editor.destroy();
+  });
+
+  it("a blur to NOTHING (popup click) does not " +
+     "gate it: only the peer does", () => {
+    const editor = createEditor("<p></p>");
+    focusTracker.reset();
+    focusTracker.notifyFocus("sp");
+
+    const { container } = render(
+      <AutocompletePopup editor={editor as any} />
+    );
+    act(() => {
+      editor.commands.focus("end");
+      editor.commands.insertContent("tok");
+    });
+
+    act(() => {
+      focusTracker.reset(); // nothing focused
+    });
+    expect(
+      container.querySelector(".autocomplete-popup")
+    ).toBeTruthy();
+
+    editor.destroy();
+  });
 });
