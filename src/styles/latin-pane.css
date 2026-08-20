@@ -1,0 +1,348 @@
+/* ── Workspace layout ────────────────────────── */
+
+.app__workspace {
+  position: relative;
+  display: grid;
+  /* editor track + auto track sized by the pane;
+     the workspace widens by exactly the pane
+     width, so the editor's width never changes */
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+}
+
+/* Facing pages: equal columns, no gap — the
+   pages meet at a single gutter line. (Fallback
+   for middling viewports; wide viewports use the
+   overhang mode below, which keeps the SP page at
+   constant width.) */
+.app__workspace--split,
+.app__workspace--closing {
+  grid-template-columns: minmax(0, 3fr)
+    minmax(0, 2fr);
+  gap: 0;
+}
+
+/* Overhang mode: the SP page keeps its closed
+   width; the workspace grows by exactly the Latin
+   page's width and shifts left by half of it, so
+   the spread stays centered. */
+@media (min-width: 1100px) {
+  .app__workspace {
+    /* Column and Latin-page widths in absolute
+       terms — a percentage here would resolve
+       against the pane's own auto track (cyclic)
+       and under-size it, leaving a gap before
+       the toggle. */
+    --column: min(868px, calc(100vw - 32px));
+    --latin-w: min(
+      calc(var(--column) * 0.64),
+      calc(100vw - var(--column) - 88px)
+    );
+  }
+
+  .app__workspace--split,
+  .app__workspace--closing {
+    width: calc(100% + var(--latin-w));
+    margin-left: calc(var(--latin-w) / -2);
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .app__workspace--split .latin-pane,
+  .app__workspace--closing .latin-pane {
+    width: var(--latin-w);
+  }
+
+  /* Opening choreography: layout snaps to the
+     open geometry; transforms replay the motion —
+     the SP page slides left from its closed spot
+     while the Latin page slides out from BENEATH
+     it (rigid moves, zero reflow/rewrap). */
+  .app__workspace--split .editor-wrapper {
+    position: relative;
+    z-index: 1;
+  }
+
+  .app__workspace--split .latin-pane {
+    z-index: 0;
+  }
+
+  /* animations live on the TRANSIENT --opening
+     class (300ms after toggle-open) so editor
+     remounts (doc switches) under a steady-open
+     pane never replay the slide */
+  .app__workspace--opening .editor-wrapper {
+    animation: sp-page-open 0.3s ease;
+  }
+
+  .app__workspace--opening .latin-pane {
+    animation: latin-page-out 0.3s ease;
+  }
+
+  .app__workspace--opening .tab-toggle--side {
+    animation: side-tab-out 0.3s ease;
+  }
+
+  @keyframes sp-page-open {
+    from {
+      transform: translateX(
+        calc(var(--latin-w) / 2)
+      );
+    }
+  }
+
+  @keyframes latin-page-out {
+    /* start with the pane's right edge flush
+       with the SP page's closed right edge
+       (still fully covered): the edge then moves
+       in lockstep with the side toggle */
+    from {
+      transform: translateX(
+        calc(var(--latin-w) / -2)
+      );
+    }
+  }
+
+  @keyframes side-tab-out {
+    from {
+      transform: translateX(
+        calc(var(--latin-w) / -2)
+      );
+    }
+  }
+
+  /* Closing choreography: the layout HOLDS the
+     open geometry while everything animates back
+     to closed positions (forwards fill); the
+     pane unmounts when the motion completes and
+     the layout snap lands where things already
+     visually are. */
+  .app__workspace--closing .editor-wrapper {
+    position: relative;
+    z-index: 1;
+    animation: sp-page-close 0.3s ease forwards;
+  }
+
+  .app__workspace--closing .latin-pane {
+    z-index: 0;
+    animation: latin-page-under 0.3s ease
+      forwards;
+  }
+
+  .app__workspace--closing .tab-toggle--side {
+    animation: side-tab-in 0.3s ease forwards;
+  }
+
+  @keyframes sp-page-close {
+    to {
+      transform: translateX(
+        calc(var(--latin-w) / 2)
+      );
+    }
+  }
+
+  @keyframes latin-page-under {
+    to {
+      transform: translateX(
+        calc(var(--latin-w) / -2)
+      );
+    }
+  }
+
+  @keyframes side-tab-in {
+    to {
+      transform: translateX(
+        calc(var(--latin-w) / -2)
+      );
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app__workspace--opening .editor-wrapper,
+    .app__workspace--opening .latin-pane,
+    .app__workspace--opening .tab-toggle--side,
+    .app__workspace--closing .editor-wrapper,
+    .app__workspace--closing .latin-pane,
+    .app__workspace--closing .tab-toggle--side {
+      animation: none;
+    }
+  }
+}
+
+/* Left page: square the gutter side; faint inner
+   shade toward the fold (kept subtle on purpose). */
+@media (min-width: 601px) {
+  .app__workspace--split .editor-wrapper,
+  .app__workspace--closing .editor-wrapper {
+    border-radius: 8px 0 0 8px;
+    border-right: none;
+    box-shadow:
+      0 1px 4px rgba(0, 0, 0, 0.06),
+      inset -8px 0 8px -8px rgba(0, 0, 0, 0.07);
+  }
+}
+
+/* ── Side toggle (show/hide Latin pane) ──────── */
+/* A vertical variant of the app's tab-toggle
+   family (help.css). Overhangs the right edge of
+   the layout column (absolute, out of grid flow)
+   so it never pushes the editor inward. */
+
+.tab-toggle--side {
+  position: absolute;
+  left: 100%;
+  top: 28px;
+  writing-mode: vertical-rl;
+  /* PUA (sitelen pona) chars default to upright
+     in vertical text (UTR#50); force uniform 90°
+     rotation for the whole label */
+  text-orientation: sideways;
+  align-items: center;
+  /* extra right padding: cartouche frames rise
+     above glyph tops, which faces screen-right
+     when rotated */
+  padding: 10px 9px 10px 4px;
+  border-radius: 0 6px 6px 0;
+  font-size: 1.4rem;
+}
+
+.tab-toggle--side::before,
+.tab-toggle--side::after {
+  content: none;
+}
+@media (max-width: 600px) {
+  .app__workspace,
+  .app__workspace--split {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  /* Fixed edge tab: the affordance stays on
+     screen regardless of scroll position. Same
+     vertical identity as desktop, clinging to
+     the viewport's right edge. */
+  .tab-toggle--side {
+    position: fixed;
+    left: auto;
+    right: 0;
+    top: auto;
+    bottom: 24px;
+    margin: 0;
+    padding: 10px 5px 10px 4px;
+    border: none;
+    border-radius: 6px 0 0 6px;
+    background: #f5f5f0;
+    z-index: 10;
+  }
+
+  .tab-toggle--side.tab-toggle--active {
+    background: #e9e6df;
+  }
+}
+
+/* ── Latin pane ──────────────────────────────── */
+
+/* Right page: same surface as the editor page,
+   corners mirrored; its left border is the
+   gutter line (the editor's right border is
+   removed in split mode). */
+.latin-pane {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #d0d0d0;
+  border-radius: 0 8px 8px 0;
+  background: #fff;
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.06),
+    inset 8px 0 8px -8px rgba(0, 0, 0, 0.07);
+  padding: 24px 32px;
+  overflow-y: auto;
+}
+
+.latin-pane__body {
+  font-family: system-ui, -apple-system, sans-serif;
+  /* fill the pane so a blank document's clickable
+     area matches the SP editor's; the pane's height
+     already tracks the SP side via the flex row */
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* the editor library wraps the editable in one
+   unclassed div — carry the stretch through it */
+.latin-pane__body > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 600px) {
+  .latin-pane {
+    border-radius: 8px;
+    margin-top: 12px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    padding: 16px 20px;
+  }
+}
+
+/* pre-wrap: multi-space Latin content and the
+   space that precedes a line break are real content
+   — render them faithfully, while still wrapping
+   long lines. Without this the browser eats the
+   trailing space before a <br> ("toki \npona" shows
+   as "toki" + break) — a real spacing
+   cosmetic. The satellite editor's paragraphs carry
+   the rule; the pane body carries it too so it
+   survives any wrapper the editor adds. */
+.latin-pane__body .latin-editor-content {
+  white-space: pre-wrap;
+  flex: 1;
+}
+
+.latin-pane__body .latin-editor-content p {
+  margin: 0 0 8px 0;
+  line-height: 1.5;
+}
+
+.latin-pane__body
+  .latin-editor-content
+  p:last-child {
+  margin-bottom: 0;
+}
+
+/* the satellite editor is a plain surface: no
+   focus ring of its own (the mirror decorations
+   carry the cross-pane feedback) */
+.latin-pane__body .latin-editor-content:focus {
+  outline: none;
+}
+
+.latin-verbatim {
+  color: #888;
+}
+
+/* Uncommitted/composing text: italic fade */
+.latin-provisional {
+  font-style: italic;
+  color: #aaa;
+}
+
+/* Cartouche names: modest chip for now — the
+   real treatment arrives with per-cartouche
+   Latin spelling overrides (future work), which
+   this span will become the affordance for */
+.latin-name {
+  padding: 0 3px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+/* NOTE: .latin-mirror / .latin-mirror-block are
+   gone with the hand-rolled span renderer — the
+   pane's mirror is now the shared .mirror-highlight
+   decoration (editor.css), set on the satellite
+   editor by the same setMirrorHighlights the SP
+   editor uses. A wholly-covered block with NO Latin
+   content therefore shows nothing (a zero-width
+   range is dropped) where the old pane tinted the
+   empty <p>; cosmetic, recorded, not rebuilt. */

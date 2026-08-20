@@ -5,6 +5,7 @@ import {
   PluginKey,
   TextSelection,
 } from "@tiptap/pm/state";
+import { LIPU_SYNC_META } from "../lipu-sync";
 
 export const verbatimTogglePluginKey =
   new PluginKey("verbatimToggle");
@@ -141,6 +142,17 @@ export const VerbatimToggle = Extension.create({
             );
             if (meta !== undefined) {
               return meta as VerbatimToggleState;
+            }
+
+            // FOREIGN-TRANSACTION RULE:
+            // a lipuSync-mapped selection delta is
+            // not user selection movement.
+            // manualOverride SURVIVES it; only
+            // genuine movement consumes it.
+            if (
+              tr.getMeta(LIPU_SYNC_META) !== undefined
+            ) {
+              return prev;
             }
 
             // Auto-sync: when the cursor moves,
