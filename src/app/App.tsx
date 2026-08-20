@@ -341,8 +341,9 @@ export function App() {
       <main className="app__main">
         <Editor
           key={docs.activeId}
-          content={docs.activeContent}
-          onSave={docs.saveContent}
+          lipu={docs.activeLipu}
+          lipuClassified={docs.activeLipuClassified}
+          onSave={docs.savePayload}
         />
       </main>
       <footer className="app__footer">
