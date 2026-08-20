@@ -13,5 +13,8 @@ export {
   STRUCTURAL_CHARS,
 } from "./structural-chars";
 export { VariantKeymap } from "./variant-keymap";
-export { PasteHandler } from "./paste-handler";
+export {
+  PasteHandler,
+  pasteHandlerKey,
+} from "./paste-handler";
 export { Verbatim } from "./verbatim";

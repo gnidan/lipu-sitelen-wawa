@@ -20,12 +20,14 @@ import type { WordEntry } from "../../data";
 import {
   isStructuralChar,
 } from "./structural-chars";
+import { focusTracker } from "../focus-tracker";
 import {
   asciiToUcsurControl,
 } from "../../data";
 import {
   verbatimTogglePluginKey,
 } from "./verbatim-toggle";
+import { LIPU_SYNC_META } from "../lipu-sync";
 
 export const autocompletePluginKey = new PluginKey(
   "autocomplete"
@@ -326,30 +328,74 @@ export const Autocomplete = Extension.create({
 
         props: {
           handleDOMEvents: {
+            // The pending composing run is MARKED
+            // VERBATIM (not committed as a word) and
+            // the popup dismissed — but only on a
+            // TRUE blur, and only at the
+            // FocusTracker's settle.
+            // Blur to the PEER pane leaves
+            // the run pending: the writer is still
+            // composing it, one pane over, and the
+            // Latin pane's own edit of that text
+            // must not arrive already marked.
+            // Plugin state is re-read AT the settle,
+            // so a range consumed meanwhile (a
+            // popup click, a commit) is respected.
+            //
+            // isSpView is what keeps NameInput
+            // whole: its editor shares this
+            // extension but is NOT a pane, so its
+            // blur is never a pane hop — it takes
+            // the synchronous path below and keeps
+            // literally today's semantics (mark,
+            // dismiss; its popup is portaled to the
+            // body and would otherwise hang over
+            // the app).
             blur(view) {
-              const st =
-                autocompletePluginKey
-                  .getState(view.state) as
-                  | AutocompleteState
-                  | undefined;
-              if (st?.range) {
+              const markPending = (): void => {
+                if (view.isDestroyed) return;
+                if (view.composing) return;
+                const st =
+                  autocompletePluginKey
+                    .getState(view.state) as
+                    | AutocompleteState
+                    | undefined;
+                if (!st?.range) return;
                 const verbatimMark =
                   view.state.schema.marks
                     .verbatim;
-                if (verbatimMark) {
-                  const tr = view.state.tr;
-                  tr.addMark(
-                    st.range.from,
-                    st.range.to,
-                    verbatimMark.create()
-                  );
-                  tr.setMeta(
-                    autocompletePluginKey,
-                    { dismiss: true }
-                  );
-                  view.dispatch(tr);
-                }
+                if (!verbatimMark) return;
+                const tr = view.state.tr;
+                tr.addMark(
+                  st.range.from,
+                  st.range.to,
+                  verbatimMark.create()
+                );
+                tr.setMeta(
+                  autocompletePluginKey,
+                  { dismiss: true }
+                );
+                view.dispatch(tr);
+              };
+              if (!focusTracker.isSpView(view)) {
+                // NOT a pane: nothing to disambiguate
+                // and nothing to wait for. Run
+                // today's behavior synchronously and
+                // stay off the pane's focus state —
+                // borrowing its single pendingBlur
+                // slot for an editor that is not a
+                // pane buys nothing and can only
+                // confuse the settle.
+                markPending();
+                return false;
               }
+              focusTracker.notifyBlur(
+                "sp",
+                (now) => {
+                  if (now !== null) return;
+                  markPending();
+                }
+              );
               return false;
             },
           },
@@ -680,6 +726,24 @@ export const Autocomplete = Extension.create({
           oldState,
           newState
         ) {
+          // FOREIGN-TRANSACTION RULE:
+          // a lipuSync adoption's auto-commit branch
+          // would read the STALE SP selection (the
+          // sync didn't move it to track the Latin
+          // edit) and could rewrite text the user
+          // never asked to commit. The `apply` hook
+          // (plugin state, `range` etc.) is NOT
+          // gated here -- it must keep recomputing
+          // on lipuSync (see `apply` above); only
+          // this dispatching hook stands down.
+          if (
+            transactions.some(
+              (t) =>
+                t.getMeta(LIPU_SYNC_META) !== undefined
+            )
+          ) {
+            return null;
+          }
           // Detect abandoned composing text
           // (cursor navigated away without edit)
           if (

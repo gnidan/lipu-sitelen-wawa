@@ -129,6 +129,13 @@
   color: #888;
 }
 
+/* Latin pane -> SP editor selection mirroring
+   (mirror-highlight extension, decoration-only) */
+.mirror-highlight {
+  background: rgba(74, 122, 181, 0.18);
+  border-radius: 3px;
+}
+
 /* Placeholder (tiptap Placeholder extension) */
 .editor-content p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);

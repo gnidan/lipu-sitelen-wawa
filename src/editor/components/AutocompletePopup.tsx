@@ -8,6 +8,7 @@ import type { Editor } from "@tiptap/react";
 import {
   autocompletePluginKey,
 } from "../extensions/autocomplete";
+import { focusTracker } from "../focus-tracker";
 import type {
   AutocompleteState,
 } from "../extensions/autocomplete";
@@ -115,6 +116,30 @@ export function AutocompletePopup({
     top: number;
   } | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+
+  // Gated on the PEER holding
+  // focus, never on "the SP editor is unfocused".
+  // A click into this popup blurs the SP editor to
+  // NULL, and that path must keep today's behavior;
+  // what must never happen is an SP suggestion list
+  // sprouting while the writer types Latin one pane
+  // over. The gate is the POPUP only — the
+  // composing-text decoration in autocomplete.ts is
+  // the global ligature suppressor and stays
+  // ungated (it serves NameInput too).
+  const [peerFocused, setPeerFocused] =
+    useState(
+      () => focusTracker.focused() === "latin"
+    );
+  useEffect(
+    () =>
+      focusTracker.subscribe(() =>
+        setPeerFocused(
+          focusTracker.focused() === "latin"
+        )
+      ),
+    []
+  );
 
   useEffect(() => {
     const update = () => {
@@ -246,6 +271,20 @@ export function AutocompletePopup({
   }, [state?.activeIndex, matchKey]);
 
   if (!state || state.matches.length === 0) {
+    return null;
+  }
+  // ...and only for the SP pane's own popup:
+  // NameInput shares this component but is not a
+  // pane, so the peer holding focus says nothing
+  // about it (and a stale "latin" would otherwise
+  // suppress its suggestions outright). The claim
+  // is read at RENDER, so it needs no subscription
+  // of its own — it is established once, at the SP
+  // editor's mount.
+  if (
+    peerFocused &&
+    focusTracker.isSpView(editor.view)
+  ) {
     return null;
   }
 

@@ -3,6 +3,7 @@ import {
   Plugin,
   PluginKey,
 } from "@tiptap/pm/state";
+import type { Node as PmNode } from "@tiptap/pm/model";
 import {
   EditorView,
 } from "@tiptap/pm/view";
@@ -33,10 +34,42 @@ const DROP_PX = 4;
 const MIN_HINT_PX = 120;
 
 /**
+ * Project a block's content to a string where
+ * string index === offset within the block
+ * (i.e. matches `pos - blockStart` for any doc
+ * position inside it).
+ *
+ * `parent.textContent` does not have this
+ * property: leaf nodes with no text (e.g.
+ * hardBreak) occupy 1 doc position but
+ * contribute 0 characters, so every position
+ * after such a leaf drifts out of sync with the
+ * string. Since UCSUR glyphs are surrogate
+ * pairs, a 1-position drift lands mid-pair and a
+ * 2-position drift lands one whole glyph off.
+ *
+ * `textBetween` with a leafText placeholder
+ * fixes this: each leaf contributes exactly one
+ * placeholder character, preserving offsets.
+ * U+FFFC (object replacement character) is used
+ * because it matches no UCSUR control char, ni
+ * arrow, or word char, so it acts as an opaque
+ * stopper to scanLeft/scanRight/cpBefore.
+ */
+export function blockText(parent: PmNode): string {
+  return parent.textBetween(
+    0,
+    parent.content.size,
+    undefined,
+    "￼"
+  );
+}
+
+/**
  * Read the codepoint immediately before the given
  * text offset, handling surrogate pairs.
  */
-function cpBefore(
+export function cpBefore(
   text: string,
   off: number
 ): number | undefined {
@@ -318,7 +351,7 @@ function renderOverlay(
   if (!$from.parent.isTextblock) return;
 
   const blockStart = $from.start();
-  const text = $from.parent.textContent;
+  const text = blockText($from.parent);
   const off = from - blockStart;
 
   const left = scanLeft(text, off);
@@ -560,8 +593,7 @@ export const StructuralIndicators =
 
               const blockStart = $pos.start();
               const blockEnd = $pos.end();
-              const text =
-                $pos.parent.textContent;
+              const text = blockText($pos.parent);
 
               if (event.key === "Backspace") {
                 const off = from - blockStart;
