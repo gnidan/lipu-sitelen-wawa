@@ -3,6 +3,7 @@
 // they replace — the pins that use them are what
 // matters, not this file.
 
+import type { JSONContent } from "@tiptap/core";
 import { codepointToChar, wordToCodepoint } from "../src/data";
 import { JOINER_CHARS } from "../src/lipu/chars";
 import {
@@ -187,4 +188,18 @@ export function stripJoiners(s: string): string {
   return [...s]
     .filter((c) => !JOINER_CHARS.has(c))
     .join("");
+}
+
+/** A one-paragraph ProseMirror doc holding `text` —
+ *  the storage/app tests' shared fixture shape. */
+export function pmDoc(text: string): JSONContent {
+  return {
+    type: "doc",
+    content: [
+      {
+        type: "paragraph",
+        content: [{ type: "text", text }],
+      },
+    ],
+  };
 }

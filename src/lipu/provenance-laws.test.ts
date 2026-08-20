@@ -33,6 +33,7 @@ import {
   MIDDLE_DOT_CH,
   STACK,
 } from "./chars";
+import { parsedToBlock } from "../editor/lipu-doc";
 import { gapPosition } from "./provenance";
 import type { GapPosition } from "./provenance";
 import type {
@@ -727,13 +728,22 @@ describe("classification stability law", () => {
         text: gp.latin,
       });
     });
-    // NOTE: one more creator belongs in this image
-    // set — the load boundary's companion newline
-    // mint (each "\n" in a loaded sp side gets a
-    // matching latin "\n"). That creator lives in
-    // the editor bridge, which does not exist yet;
-    // its image joins this set when the bridge
-    // lands.
+    // parsedToBlock's companion mint (the editor
+    // bridge's load-boundary chain): each "\n" in a
+    // loaded sp side gets a matching latin "\n".
+    const loaded = parsedToBlock({
+      anchors: [word("toki"), word("pona")],
+      gaps: ["", "\n", ""],
+    });
+    // non-vacuous: the companion mint really fired
+    // (not e.g. silently skipped, which would leave
+    // "" and trivially satisfy looksDefault anyway)
+    expect(loaded.gaps[1].latin).toBe("\n");
+    images.push({
+      side: "latin",
+      position: gapPosition(1, loaded.gaps.length),
+      text: loaded.gaps[1].latin, // "\n"
+    });
     // applyMarkedVerbatimSpDefault's " ": a fresh
     // degenerate adjacency between two marked
     // verbatims minted by the SAME latin merge gets
@@ -774,6 +784,9 @@ describe("classification stability law", () => {
     ).toBeUndefined();
     expect(
       joined[0].gaps[1].spAuthored
+    ).toBeUndefined();
+    expect(
+      loaded.gaps[1].latinAuthored
     ).toBeUndefined();
     expect(
       verbatimOut.gaps[1].spAuthored
