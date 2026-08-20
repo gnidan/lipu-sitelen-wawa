@@ -64,6 +64,21 @@ export type { MergeResult } from "./merge";
 export { promoteBlock, splitLatin }
   from "./normalize";
 export {
+  applySeparationDefaults,
+  applySeparationDefaultsLipu,
+  capLatinNewlines,
+  flattenBlocks,
+  flattenParsed,
+  inCartoucheContext,
+  isSentinel,
+  mergeLatinBlock,
+  mergeSpBlock,
+  mergeStructural,
+  normalizeLetterishLatin,
+  normalizeLetterishLatinLipu,
+  rechunk,
+} from "./doc-merge";
+export {
   classifyBlock,
   classifyProvenance,
   gapPosition,
