@@ -63,5 +63,17 @@ export { mergeBlockDetailed } from "./merge";
 export type { MergeResult } from "./merge";
 export { promoteBlock, splitLatin }
   from "./normalize";
+export {
+  classifyBlock,
+  classifyProvenance,
+  gapPosition,
+  isAuthored,
+  looksDefault,
+  orInto,
+  originDefault,
+  reattachProvenance,
+  withMark,
+} from "./provenance";
+export type { GapPosition } from "./provenance";
 export { entryRangeAt, rangeForEntries }
   from "./source-map";
