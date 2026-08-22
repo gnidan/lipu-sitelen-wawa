@@ -310,6 +310,14 @@
   margin-bottom: 0;
 }
 
+.latin-pane__body
+  .latin-editor-content
+  p.block-indicator {
+  position: relative;
+  margin-left: -14px;
+  padding-left: 14px;
+}
+
 /* the satellite editor is a plain surface: no
    focus ring of its own (the mirror decorations
    carry the cross-pane feedback) */

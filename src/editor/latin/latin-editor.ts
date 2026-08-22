@@ -67,6 +67,8 @@ import { lipuModelKey } from
   "../extensions/lipu-model";
 import { MirrorHighlight } from
   "../extensions/mirror-highlight";
+import { BlockIndicators } from
+  "../extensions/block-indicators";
 import {
   LATIN_SYNC_META,
   LIPU_SYNC_META,
@@ -362,6 +364,7 @@ export function createLatinEditor(
       // Latin paste.
       latinPaste(),
       MirrorHighlight,
+      BlockIndicators,
       DecoExtension,
       // Cmd+Z anywhere in the dual-pane surface
       // reaches the ONE shared stack, which lives in

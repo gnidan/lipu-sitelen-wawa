@@ -20,6 +20,9 @@ import {
 import {
   IndicatorTooltip,
 } from "./IndicatorTooltip";
+import {
+  BlockIndicatorTooltip,
+} from "./BlockIndicatorTooltip";
 import { useDocuments } from "./useDocuments";
 import {
   DocumentPanel,
@@ -39,6 +42,8 @@ const FONT_SIZE_KEY =
   "lipu-sitelen-wawa:font-size";
 const INDICATORS_KEY =
   "lipu-sitelen-wawa:indicators";
+const BLOCK_INDICATORS_KEY =
+  "lipu-sitelen-wawa:block-indicators";
 const LATIN_PANE_KEY =
   "lipu-sitelen-wawa:latin-pane";
 
@@ -73,11 +78,26 @@ export function App() {
     useState(false);
   const [tooltipNoDelay, setTooltipNoDelay] =
     useState(false);
+  const [
+    blockTipDismissed, setBlockTipDismissed,
+  ] = useState(false);
+  const [
+    blockTipNoDelay, setBlockTipNoDelay,
+  ] = useState(false);
   const [indicators, setIndicators] =
     useState(() => {
       try {
         return localStorage.getItem(
           INDICATORS_KEY) !== "off";
+      } catch {
+        return true;
+      }
+    });
+  const [blockIndicators, setBlockIndicators] =
+    useState(() => {
+      try {
+        return localStorage.getItem(
+          BLOCK_INDICATORS_KEY) !== "off";
       } catch {
         return true;
       }
@@ -185,6 +205,22 @@ export function App() {
 
   useEffect(() => {
     try {
+      if (blockIndicators) {
+        localStorage.removeItem(
+          BLOCK_INDICATORS_KEY
+        );
+      } else {
+        localStorage.setItem(
+          BLOCK_INDICATORS_KEY, "off"
+        );
+      }
+    } catch {
+      // ignore
+    }
+  }, [blockIndicators]);
+
+  useEffect(() => {
+    try {
       if (latinPane) {
         localStorage.setItem(
           LATIN_PANE_KEY, "on"
@@ -239,6 +275,9 @@ export function App() {
         + (indicators
           ? ""
           : " app--hide-indicators")
+        + (blockIndicators
+          ? ""
+          : " app--hide-block-indicators")
         + (controlsOpen
           ? " app--controls-open"
           : "")
@@ -343,6 +382,61 @@ export function App() {
               </button>
               {controlsOpen && (
                 <IndicatorTooltip />
+              )}
+            </div>
+            <div
+              className={
+                "block-indicator-tooltip-anchor"
+                + (blockTipDismissed
+                  ? " block-indicator-tooltip"
+                    + "-anchor--dismissed"
+                  : "")
+                + (blockTipNoDelay
+                  ? " block-indicator-tooltip"
+                    + "-anchor--no-delay"
+                  : "")
+              }
+              onMouseLeave={() => {
+                setBlockTipDismissed(false);
+                setBlockTipNoDelay(false);
+              }}
+              onTransitionEnd={(e) => {
+                if (
+                  e.target === e.currentTarget
+                ) {
+                  setBlockTipNoDelay(false);
+                }
+              }}
+            >
+              <button
+                type="button"
+                className={
+                  "toolbar-button"
+                  + (blockIndicators
+                    ? " toolbar-button--active"
+                    : "")
+                }
+                tabIndex={
+                  controlsOpen ? 0 : -1
+                }
+                onClick={() => {
+                  setBlockTipDismissed(
+                    blockIndicators
+                  );
+                  setBlockTipNoDelay(
+                    !blockIndicators
+                  );
+                  setBlockIndicators(
+                    (prev) => !prev
+                  );
+                }}
+                onMouseDown={(e) =>
+                  e.preventDefault()}
+              >
+                <SP>linja-leko</SP>
+              </button>
+              {controlsOpen && (
+                <BlockIndicatorTooltip />
               )}
             </div>
           </div>
