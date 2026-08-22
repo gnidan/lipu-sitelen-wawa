@@ -24,6 +24,10 @@
   margin: 0.5em 0;
 }
 
+.editor-content p:first-child {
+  margin-top: 0;
+}
+
 /* Suppress nasin-nanpa ligatures for text still being
    composed, so Latin letters stay readable until the
    word is committed as a UCSUR character. */
@@ -134,6 +138,36 @@
 .mirror-highlight {
   background: rgba(74, 122, 181, 0.18);
   border-radius: 3px;
+}
+
+/* Block gutter indicators — thin left-margin
+   bars on every paragraph; active block (cursor)
+   gets a brighter bar, inactive blocks a muted
+   one. Same warm-gray family as the structural
+   indicator stems. */
+/* Specificity must beat .editor-content p
+   (0,1,1) and .latin-pane__body
+   .latin-editor-content p (0,2,1) which both
+   set margin-left via shorthand. */
+.editor-content p.block-indicator {
+  position: relative;
+  margin-left: -14px;
+  padding-left: 14px;
+}
+
+.block-indicator::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 1.5px;
+  background: rgba(138, 122, 96, 0.1);
+}
+
+.block-indicator--active::before {
+  background: rgba(138, 122, 96, 0.35);
 }
 
 /* Placeholder (tiptap Placeholder extension) */

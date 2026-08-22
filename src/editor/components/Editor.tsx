@@ -50,6 +50,9 @@ import {
   MirrorHighlight,
 } from "../extensions/mirror-highlight";
 import {
+  BlockIndicators,
+} from "../extensions/block-indicators";
+import {
   docToLipu,
   lipuToContent,
   loadNormalizeLipu,
@@ -276,6 +279,7 @@ export function Editor({
           : null,
       }),
       MirrorHighlight,
+      BlockIndicators,
       StarterKit.configure({
         // PM-native history is OFF on BOTH editors.
         // Undo is a lipu-layer operation now — one

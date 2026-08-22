@@ -22,6 +22,10 @@ import {
 import {
   setMirrorHighlights,
 } from "../editor/extensions/mirror-highlight";
+import {
+  activeBlockIndex,
+  setActiveBlock,
+} from "../editor/extensions/block-indicators";
 import type {
   MirrorRangePm,
 } from "../editor/extensions/mirror-highlight";
@@ -250,6 +254,80 @@ export function LatinPane({
     };
   }, [editor, latinEditor]);
 
+  // Block indicator cross-pane sync: the focused
+  // pane sends its active block index to the other
+  // pane so both gutters emphasize the same block.
+  // Focus events trigger an immediate sync so the
+  // bars update without waiting for a cursor move.
+  useEffect(() => {
+    if (!editor || !latinEditor) return;
+    // SP -> Latin: propagate on selection/doc
+    // change, gated by focus.
+    const spUpdate = () => {
+      if (latinEditor.isDestroyed) return;
+      if (focusTracker.focused() !== "sp") return;
+      const active =
+        activeBlockIndex(editor.state);
+      setActiveBlock(latinEditor, active);
+    };
+    // Latin -> SP: filter reconcile-induced
+    // selection changes (same guard as the
+    // mirror-highlight direction).
+    const latinUpdate = ({
+      transaction,
+    }: {
+      transaction: Transaction;
+    }) => {
+      if (editor.isDestroyed) return;
+      if (
+        transaction.getMeta(LATIN_SYNC_META) !==
+        undefined
+      ) {
+        return;
+      }
+      if (
+        focusTracker.focused() !== "latin"
+      ) {
+        return;
+      }
+      const active =
+        activeBlockIndex(latinEditor.state);
+      setActiveBlock(editor, active);
+    };
+    // Immediate sync on focus change so the bars
+    // update without waiting for a cursor move.
+    const onSpFocus = () => {
+      if (latinEditor.isDestroyed) return;
+      const active =
+        activeBlockIndex(editor.state);
+      setActiveBlock(latinEditor, active);
+    };
+    const onLatinFocus = () => {
+      if (editor.isDestroyed) return;
+      const active =
+        activeBlockIndex(latinEditor.state);
+      setActiveBlock(editor, active);
+    };
+    editor.on("selectionUpdate", spUpdate);
+    editor.on("update", spUpdate);
+    editor.on("focus", onSpFocus);
+    latinEditor.on(
+      "selectionUpdate", latinUpdate
+    );
+    latinEditor.on("focus", onLatinFocus);
+    // Initial sync.
+    spUpdate();
+    return () => {
+      editor.off("selectionUpdate", spUpdate);
+      editor.off("update", spUpdate);
+      editor.off("focus", onSpFocus);
+      latinEditor.off(
+        "selectionUpdate", latinUpdate
+      );
+      latinEditor.off("focus", onLatinFocus);
+    };
+  }, [editor, latinEditor]);
+
   // A TRUE blur (the settle reports no pane
   // focused — click on the page background, not a
   // pane hop) clears the mirrored highlight in BOTH
@@ -282,9 +360,11 @@ export function LatinPane({
       if (now !== null) return;
       if (!editor.isDestroyed) {
         setMirrorHighlights(editor, []);
+        setActiveBlock(editor, -1);
       }
       if (!latinEditor.isDestroyed) {
         setMirrorHighlights(latinEditor, []);
+        setActiveBlock(latinEditor, -1);
       }
     };
     const onSpBlur = () => {

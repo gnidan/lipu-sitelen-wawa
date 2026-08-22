@@ -1,0 +1,107 @@
+/* ── Block indicator tooltip ────────────────── */
+
+.block-indicator-tooltip-anchor {
+  position: relative;
+}
+
+.block-indicator-tooltip {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  padding-top: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.block-indicator-tooltip-anchor:hover
+  .block-indicator-tooltip {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0.15s ease 0.3s;
+}
+
+.block-indicator-tooltip-anchor--dismissed:hover
+  .block-indicator-tooltip {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.block-indicator-tooltip-anchor--no-delay:hover
+  .block-indicator-tooltip {
+  transition: opacity 0.15s ease;
+}
+
+.block-indicator-tooltip__card {
+  background: #fff;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 2px;
+  user-select: none;
+}
+
+.block-indicator-tooltip__scene {
+  position: relative;
+  overflow: hidden;
+  border-radius: 6px;
+}
+
+/* ── Mini editor overrides ──────────────────── */
+
+.block-indicator-tooltip__editor {
+  font-size: 1.8rem !important;
+  min-height: auto !important;
+  padding: 4px 16px 4px 20px !important;
+  line-height: 1.5 !important;
+}
+
+.block-indicator-tooltip__editor p {
+  white-space: nowrap;
+}
+
+/* Always show block indicators in tooltip,
+   even when app--hide-block-indicators is
+   active */
+.block-indicator-tooltip
+  .block-indicator::before {
+  display: block !important;
+}
+
+/* Vertical highlight strip surrounding the
+   gutter bars. Anchored to the first paragraph
+   so it shares the bars' coordinate system
+   (::before sits at left: 0 of the same
+   element); the oversized top/bottom is clipped
+   to the scene by overflow: hidden. */
+.block-indicator-tooltip
+  .block-indicator:first-child::after {
+  content: "";
+  position: absolute;
+  left: -4.5px;
+  top: -100px;
+  bottom: -100px;
+  width: 12px;
+  background: rgba(74, 122, 181, 0.1);
+  pointer-events: none;
+}
+
+/* ── Fake cursor (absolutely positioned) ───── */
+
+.block-indicator-tooltip__cursor {
+  position: absolute;
+  width: 2px;
+  background: #333;
+  pointer-events: none;
+  animation:
+    block-indicator-tooltip-blink
+    1s step-end infinite;
+}
+
+@keyframes block-indicator-tooltip-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}

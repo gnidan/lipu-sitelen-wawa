@@ -4,6 +4,7 @@
 @import "./autocomplete.css";
 @import "./help.css";
 @import "./indicator-tooltip.css";
+@import "./block-indicator-tooltip.css";
 @import "./document-panel.css";
 @import "./latin-pane.css";
 
@@ -185,6 +186,11 @@ h1 {
 
 .app--hide-indicators
   .structural-indicator-overlay {
+  display: none;
+}
+
+.app--hide-block-indicators
+  .block-indicator::before {
   display: none;
 }
 
